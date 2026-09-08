@@ -65,6 +65,18 @@ closer is UNKNOWN.** Only infinity-end rows are trustworthy pupil data.
 All three messages read **the same per-focus table**. One record holds slot A at bytes `[0..5]` and
 slot B at `[6..11]`.
 
+**The table is indexed by the focus position**, on the protocol's own distance grid — one bucket per
+grid point:
+
+```
+bucket = clamp(pos * 3 / 256, min 53) - 53
+```
+
+`pos` is the [live focus position](live_focus_position.md), the `n × 256/3` value all three messages
+also carry, and `pos × 3 / 256` is exactly its grid index `n`. That is the mechanism behind the wire
+observation that slot A changes only when focus moves — and it means the resolution of the
+correction data is the resolution of that scale, nothing finer.
+
 **The parity rule.** A table holds `2N` records for `N` focus buckets. Bucket `k` owns records `2k`
 and `2k+1`; the pair **shares one slot A** and carries **two different slot Bs** — one type 1 and
 one type 0.

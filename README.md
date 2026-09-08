@@ -177,3 +177,7 @@ PROBABLE, and worth remembering before assuming a fixed layout.
 Messages **0x05, 0x28 and 0x35 all carry the same 6-byte optical rows**, in three different
 layouts. They have their own reference: [the 6-byte optical rows](docs/optical_data.md).
 
+Those same three messages, plus the **0x1B** command channel, all carry the **live focus position** —
+an `n × 256/3` distance index shared by every device on the bus, and emphatically *not* the lens's
+own encoder count. It has its own reference too:
+[the live focus position](docs/live_focus_position.md).

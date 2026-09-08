@@ -27,7 +27,8 @@ Three facts, and they pull in different directions:
    0x35 request. It is not in the ~60 Hz loop.
 3. But unlike every other init-class message, it is **not a fixed blob**. Messages 0x01, 0x07, 0x08,
    0x09, 0x0D, 0x10, 0x16, 0x3D and 0x4C are copied out of a fixed table; 0x35 is **computed from
-   scratch on each request**, reading the live focus position and the live velocity byte.
+   scratch on each request**, reading the [live focus position](live_focus_position.md) and the live
+   velocity byte.
 
 Point 3 is why "asked once at init" is unlikely: nobody writes a live builder for a constant. The
 honest statement is that the implementation is **prepared to be asked at any time and to answer with
@@ -46,7 +47,7 @@ current data**, and that how often a real body actually asks is **UNKNOWN**.
 | `[0x08]` | 1 | Forced to `0` after the above write | — |
 | **`[0x0A..0x0D]`** | **4** | **Focal length pair, two u16 LE, mm × 10** | Same writer as msg 0x05 |
 | `[0x0E]` | 1 | `1`, or `3` when a GPIO bit is set | Live |
-| `[0x0F..0x10]` | 2 | A position delta | Live, conditional |
+| `[0x0F..0x10]` | 2 | A position delta, on the [live focus position](live_focus_position.md) scale — message 0x28 carries the position itself at the same offset | Live, conditional |
 | **`[0x11..0x16]`** | **6** | **[Optical row A](optical_data.md#4-slot-a--the-field-sampling-grid)** | Focus-indexed table |
 | `[0x17..0x19]` | 3 | Secondary block bytes 13–15 | Constant block |
 | **`[0x1A..0x1F]`** | **6** | **[Optical row B](optical_data.md#1-what-the-rows-carry)** — pupil size or pupil magnification, by [type flag](optical_data.md#34-byte-0-bit-7--the-row-type-flag--probable) | Same record |

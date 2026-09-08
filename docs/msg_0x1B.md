@@ -37,7 +37,9 @@ Three things follow, and they are why this message matters:
    report path straddle one calibration table.
 2. **So message 0x1B speaks message 0x05's units**, the normalised `n × 256/3` distance scale — *not*
    message 0x06's raw encoder counts. The body issues focus targets in the same space the lens
-   reports position in, which is what makes that space worth getting right.
+   reports position in, which is what makes that space worth getting right. That scale, and the
+   inverse map with its plots, are documented in
+   **[the live focus position](live_focus_position.md)**.
 3. **The reply is one position sent twice**, exactly as message 0x05 does with `pl[0..1]`/`pl[2..3]`.
    It is not a wide/tele pair.
 

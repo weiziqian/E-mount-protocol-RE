@@ -50,8 +50,7 @@ SELP1650    | a0 ea 70 49 1e 0f | e1 b9 12 a6 e1 f6 | ... 15 16 ... de f2 b6 b9 
 
 | Field | Meaning | Confidence |
 | --- | --- | --- |
-| `pl[0..1]` | **u16 LE live focus position, on the NORMALISED distance scale `n × 256/3`** — *not* the lens's own encoder counts. See the scale section below. | **CERTAIN** |
-| `pl[0..1]` — caveat | "Live focus position" holds on every AF lens measured, but **not universally**. The Voigtländer 15/4.5 leaves `pl[0..1]` frozen at 5205 through a full 0.3 m → ∞ focus-ring sweep (536 frames) and instead moves it when the **aperture** ring turns; on that lens focus is reported in `pl[20..21]`/`pl[23]` only. Check that a lens actually moves this field before decoding it as position. | **CERTAIN** (one counter-example) |
+| `pl[0..1]` | **u16 LE [live focus position](live_focus_position.md), on the NORMALISED distance scale** — *not* the lens's own encoder counts. See the scale section below. | **CERTAIN** |
 | `pl[2..3]` | Second copy of the same value. Yongnuo writes the two fields **identically**; unlike message 0x06, there is no forecast term here. | **CERTAIN** |
 | `pl[4]` | **A "frames until settled" countdown.** Yongnuo loads a counter here and decrements it while it is > 1. Seen on the wire: the SEL5518Z sends `03 02 01 00` over four consecutive frames while its reported position climbs 4543 → 4758 → 4832 → 4908, then holds 0. TECHART LM-EA9: always 0. | **CERTAIN** |
 | `pl[5]` | A per-lens value that jumps for a frame or two around motion events — `0x1e`/`0x5e` SELP1650, `0x2c` SEL5518Z, `0x28`/`0xca` SEL2870, `0x15`/`0x1a` SEL55210. Yongnuo zeroes it every frame; both manual lenses and the LM-EA9 send 0. | UNKNOWN |
@@ -85,7 +84,11 @@ SELP1650    | a0 ea 70 49 1e 0f | e1 b9 12 a6 e1 f6 | ... 15 16 ... de f2 b6 b9 
 
 ---
 
-## The focus-position scale is `n × 256/3`, not encoder counts
+## The focus-position scale is not encoder counts
+
+Summarised here because this message is where the value is read most often. The scale, the
+transform in both directions, the plots, and the two implementation defects around them have
+their own document: **[the live focus position](live_focus_position.md)**.
 
 This is why message 0x05's position and message 0x06's position never agree on any device.
 

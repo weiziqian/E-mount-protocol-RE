@@ -27,7 +27,7 @@ write_focal_length(scratch);                /* same writer as msg 0x05 and msg 0
 rec = record(pos, /* parity */ 0);          /* SAME focus-indexed record as msg 0x05 and 0x35 */
 frame[0x0A..0x0D] = focal_pair;
 memcpy(frame + 0x11, rec_scratch, 27);      /* 27 contiguous bytes */
-if (flag) frame[0x0F..0x10] = pos;          /* live focus position */
+if (flag) frame[0x0F..0x10] = pos;          /* live focus position, n x 256/3 */
 ```
 
 ## Frame map
@@ -36,7 +36,7 @@ if (flag) frame[0x0F..0x10] = pos;          /* live focus position */
 | --- | --- |
 | `[0x06..0x09]` | Derived block, same source as message 0x35's `[0x06..0x09]` |
 | **`[0x0A..0x0D]`** | **Focal length pair**, two u16 LE, mm × 10 — identical encoding to 0x05 and 0x35 |
-| `[0x0F..0x10]` | Live focus position, on the `n × 256/3` scale |
+| `[0x0F..0x10]` | **[Live focus position](live_focus_position.md)** — the same value message 0x05 reports at `pl[0..1]` |
 | **`[0x11..0x16]`** | **[Optical row A](optical_data.md#4-slot-a--the-field-sampling-grid)** |
 | **`[0x17..0x1C]`** | **[Optical row B](optical_data.md#1-what-the-rows-carry)** — pupil size or pupil magnification, by [type flag](optical_data.md#34-byte-0-bit-7--the-row-type-flag--probable) |
 | `[0x1D..0x2B]` | 15 further bytes of the same 27-byte block, not traced |
