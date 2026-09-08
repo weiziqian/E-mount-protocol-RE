@@ -14,6 +14,28 @@ the other and never both.
 `pl` is the payload: `pl[n]` is payload byte `n`, i.e. absolute frame offset `n + 6`. Ranges
 `pl[a..b]` are inclusive of both ends: `pl[a]` through `pl[b]`, length `b - a + 1`.
 
+## Two payload sizes
+
+A lens uses either the **96-byte** payload (105-byte frame) or the **108-byte** one (117-byte
+frame), and *never both*.
+
+| Variant | Devices |
+| --- | --- |
+| 96 B payload / 105 B frame | SELP1650, SEL55210, SEL2870, SEL5518Z, Voigtländer, Loxia, both Viltrox adapters, TECHART LM-EA9, Yongnuo 35F1.8 DA |
+| 108 B payload / 117 B frame | Techart EOS-NEX III in Fn mode, Yongnuo 50F1.8S DF |
+
+Tempting hypothesis: 117 = full-frame, 105 = APS-C. One lens sits on each side of that split, so it
+is a hypothesis, not a result.
+
+The two variants share a layout. **`pl[0..82]` is identical between them**; the long form's extra
+12 bytes are *appended*. Slots C and D are the head of one **25-byte** record: the long form
+carries all 25 (`pl[83..107]`), the short form carries only the first 13 (`pl[83..95]`). This is
+the same shape as slot A/B, whose record is 14 bytes of which 13 are sent (`pl[32..44]`).
+Everything above that — the row index `pl[77..80]`, and `pl[81..82]` — sits at the same offset in
+both, confirmed by the Yongnuo 50F1.8S DF's 108-byte payload matching the 96-byte field map field
+for field up to `pl[82]`. Only the **extent** of the slot C/D region differs, so field offsets do
+carry across variants. CERTAIN.
+
 ## Reference payloads
 
 ```
@@ -58,7 +80,7 @@ SELP1650    | a0 ea 70 49 1e 0f | e1 b9 12 a6 e1 f6 | ... 15 16 ... de f2 b6 b9 
 | **`pl[81..82]`** | **Effective focal length × 10, corrected for focus.** Both Yongnuo implementations compute `base + slope × f(focus)`, and **the base constant is the lens's own focal length**: `358.0` on the YN35 (whose `pl[24..25]` is 358) and `0x202` = 514 on the YN50 DF (`pl[24..25]` = 512); slopes `−0.0869` and `−1.04`, applied to a clamped target-minus-current term. The Voigtländer confirms it on the wire: nominal 15 mm (`pl[24..25]` = 150), and `pl[81..82]` walks 154 → 163 as focus moves far → near — focus breathing, in the same mm × 10 units as `pl[24..25]`. Every Sony lens measured, both Viltrox adapters and the LM-EA9 send 0. | **CERTAIN** for Yongnuo (two independent implementations agree, each base equalling its own focal length); PROBABLE for the Voigtländer; that Sony uses the same field UNKNOWN |
 | **`pl[83..88]`** | **[Optical row, slot C](optical_data.md#8-slots-c-and-d).** Same 6-byte encoding, different quantity. "A strict function of `pl[77]`" is a Sony (SEL2870) observation, **not a protocol universal** — on Yongnuo the same selector picks between two fixed 25-byte records that are byte-identical (both zero) on the one lens checked, and it is the same record message 0x35 calls its "secondary bytes". | Lookup mechanism **CERTAIN**; whether it carries real per-index data is vendor-dependent |
 | **`pl[89..94]`** | **[Optical row, slot D](optical_data.md#8-slots-c-and-d)** — round-robin retransmission of rows also seen in A/B/C on Sony; on Yongnuo, part of the same empty 25-byte record as slot C. | PROBABLE (Sony); empty on the one Yongnuo lens checked |
-| **`pl[83..107]`** | In the 117-byte variant slots C and D are the head of **one 25-byte record**, fetched in a single call and written to `pl[83..107]`. The 105-byte variant carries the first **13** bytes of the same record, `pl[83..95]`. This is the same shape as slot A/B, whose record is 14 bytes of which 13 are sent (`pl[32..44]`). | **CERTAIN** |
+| **`pl[83..107]`** | Slots C and D are the head of **one 25-byte record**, fetched in a single call. The 108-byte payload carries all 25 bytes at `pl[83..107]`; the 96-byte payload carries only the first 13, `pl[83..95]`. See [Two payload sizes](#two-payload-sizes). | **CERTAIN** |
 | **`pl[95]`** | Structurally the **13th byte of the slot C/D record**, written as part of the record copy. On Sony it does **not** track the row index: the SEL2870 holds `0x11` across all 109 frames while slots C and D cycle through three rows each. Observed: `0x11` on SELP1650 / SEL55210 / SEL2870, `0x02` on SEL5518Z and both Yongnuo lenses, **`0x00` on the Voigtländer, the Loxia, both Viltrox adapters and the LM-EA9**. On the SELP1650 and SEL5518Z it is `0x00` in the very first status frame — the one where the row index is still `00 00` — and takes the lens's value from the second frame onward. So it correlates with autofocus capability *and* sits where record data would sit; those two readings have not been separated. | Position in the record **CERTAIN**; why it is constant per Sony lens UNKNOWN |
 
 ---

@@ -128,7 +128,7 @@ Four frames per cycle, **lens first**, one shared `seq`, period ≈ 16.7 ms — 
 
 | Order | Dir | ID | Length (payload) |
 | --- | --- | --- | --- |
-| 1 | L→B | **0x05** | 96 B (or 108 B in the 117-byte frame variant) |
+| 1 | L→B | **0x05** | 96 B, or 108 B in the [117-byte frame variant](docs/msg_0x05.md#two-payload-sizes) |
 | 2 | L→B | **0x06** | 39 B |
 | 3 | B→L | **0x03** | 23 B native / 20 B to the Viltrox adapter |
 | 4 | B→L | **0x04** | 13 B |
@@ -140,27 +140,6 @@ and 0x03/0x04 are the body's response to them, not the other way round. Second, 
 the length of message 0x03 by device class (20 B to the Viltrox, 23 B to both Sony natives, from
 the same A6000) — so the **body adapts its own frames to what the lens declared during init**.
 PROBABLE, and worth remembering before assuming a fixed layout.
-
-### Two status-frame sizes
-
-A lens uses either the **105-byte** message 0x05 (96 B payload) or the **117-byte** one (108 B
-payload) and *never both*.
-
-| Variant | Devices |
-| --- | --- |
-| 105 B | SELP1650, SEL55210, SEL2870, SEL5518Z, Voigtländer, Loxia, both Viltrox adapters, TECHART LM-EA9, Yongnuo 35F1.8 DA |
-| 117 B | Techart EOS-NEX III in Fn mode, Yongnuo 50F1.8S DF |
-
-Tempting hypothesis: 117 = full-frame, 105 = APS-C. One lens sits on each side of that split, so it
-is a hypothesis, not a result.
-
-The two variants share a layout. **`pl[0..82]` is identical between them**; the 117-byte form's
-extra 12 bytes are *appended*. Slots C and D are the head of one **25-byte** record: the long form
-carries all 25 (`pl[83..107]`), the short form carries only the first 13 (`pl[83..95]`).
-Everything below that — the row index `pl[77..80]`, and `pl[81..82]` — sits at the same offset in
-both, confirmed by the Yongnuo DF's 108-byte payload matching the 96-byte field map field for
-field up to `pl[82]`. Only the **extent** of the slot C/D region differs, so field offsets do carry
-across variants.
 
 ---
 
