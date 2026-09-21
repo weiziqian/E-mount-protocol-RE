@@ -199,7 +199,7 @@ PROBABLE, and worth remembering before assuming a fixed layout.
 | **[0x0C](docs/msg_0x0C.md)** | both | init | small init exchange |
 | **[0x0D](docs/msg_0x0D.md)** | both | init | small init exchange |
 | **[0x10](docs/msg_0x10.md)** | both | init | small init exchange, long reply delay |
-| **[0x16](docs/msg_0x16.md)** | ? | ? | unknown; the only `class = 0x00` frame |
+| **[0x16](docs/msg_0x16.md)** | both | init | **shutdown request** — the body waits for the echoed acknowledgement before removing power |
 | **[0x19](docs/msg_0x19.md)** | ? | ? | unknown |
 | **[0x1B](docs/msg_0x1B.md)** | both | normal | command channel — focus target or aperture |
 | **[0x1D](docs/msg_0x1D.md)** | B→L | ? | probably a frame length, not an ID |
