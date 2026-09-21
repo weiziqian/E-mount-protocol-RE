@@ -8,11 +8,19 @@
 
 **Payload:** 65 bytes on the TECHART LM-EA9 — ASCII, NUL-padded, with a leading `00`.
 
-**Never observed on the wire.** The Sony A6000 does not offer ID `0x3F`. The LM-EA9 asserts bit 62
-and would reply anyway, so it is presumably sent to bodies that ask.
+**Requested by later bodies.** The Sony A6000 does not offer ID `0x3F` and never asks for it; a
+Sony a9 II requests it during every init handshake.
 
 `pl` is the payload: `pl[n]` is payload byte `n`, i.e. absolute frame offset `n + 6`. Ranges
 `pl[a..b]` are inclusive of both ends: `pl[a]` through `pl[b]`, length `b - a + 1`.
+
+## Requested during init by later bodies
+
+A Sony a9 II requests this message during the init handshake, between the `0x0B` and `0x08`
+exchanges. A Sony A6000 never requests it — the ID lies beyond the range that body offers in its
+[capability bitmap](msg_0x01.md). CERTAIN on both bodies.
+
+A device that answers only the A6000's nine init messages will stall here on a later body.
 
 ## Strings observed
 
@@ -39,12 +47,14 @@ difference between the two strings is exactly 122.
 
 ## Manufacturer notes
 
-- **TECHART** — asserts bit 62 for this ID even though no body measured offers it.
+- **TECHART** — asserts bit 62 for this ID. The A6000 does not offer it, but the a9 II requests it,
+  so the bit is not the dead weight it appears to be against an older body.
 - **TTArtisan**, **Meike** — both implement the message; the Meike string ships with a typo.
 - **Sony**, **Yongnuo**, **Viltrox** — not observed implementing it.
 
 ## Open questions
 
-- Whether any body requests the message, and what it does with the string.
+- What a body does with the string. The a9 II requests it during init; whether it is displayed,
+  logged, or used to select behaviour is UNKNOWN.
 - Whether the payload length is fixed at 65 bytes or sized to the string.
 - What the leading `00` byte selects, if anything.

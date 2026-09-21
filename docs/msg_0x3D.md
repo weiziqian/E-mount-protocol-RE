@@ -1,11 +1,20 @@
-# Message 0x3D — implemented, never observed carrying data
+# Message 0x3D — requested during init, contents unknown
 
-**Summary.** An ID implemented by two manufacturers at **different lengths**, with UNKNOWN contents.
+**Summary.** An init-class exchange requested by later Sony bodies, implemented by two
+manufacturers at **different lengths**, with UNKNOWN contents.
 
-**Direction:** UNKNOWN. **Class:** UNKNOWN.
+**Direction:** both. **Class:** init (`0x02`).
 
 `pl` is the payload: `pl[n]` is payload byte `n`, i.e. absolute frame offset `n + 6`. Ranges
 `pl[a..b]` are inclusive of both ends: `pl[a]` through `pl[b]`, length `b - a + 1`.
+
+## Requested during init by later bodies
+
+A Sony a9 II requests this message during the init handshake, between the `0x0B` and `0x08`
+exchanges. A Sony A6000 never requests it — the ID lies beyond the range that body offers in its
+[capability bitmap](msg_0x01.md). CERTAIN on both bodies.
+
+A device that answers only the A6000's nine init messages will stall here on a later body.
 
 ## What is known
 

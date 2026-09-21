@@ -8,46 +8,78 @@ is frame 3 of the four-frame 60 Hz loop, sent after the lens has already reporte
 
 **Class:** normal (`0x01`).
 
-**Payload:** 23 bytes to natives, **20 bytes to the Viltrox adapter** — from the same Sony A6000.
+**Payload:** 23 bytes to natives, **20 bytes to adapters**. The A6000 sends 23 bytes to Sony
+natives and 20 to the Viltrox EF adapter; a Sony a9 II sends 20 bytes to a TECHART LM-EA9. Two
+bodies, two adapters, the same rule.
 
 `pl` is the payload: `pl[n]` is payload byte `n`, i.e. absolute frame offset `n + 6`. Ranges
 `pl[a..b]` are inclusive of both ends: `pl[a]` through `pl[b]`, length `b - a + 1`.
 
-## Example — Sony SELP1650
+## Examples
+
+Sony A6000 → SELP1650, 23-byte native form:
 
 ```
-bb 2e 00 bd 13 bd 13 1c 00 00 06 04 00 02 00 03 01 00 00 00 2f 15 17
+BB 2E 00 BD 13 BD 13 1C 00 00 06 04 00 02 00 03 01 00 00 00 2F 15 17
 ```
+
+Sony a9 II → TECHART LM-EA9, 20-byte adapter form, two consecutive frames early in a session:
+
+```
+6C 3D 00 00 10 00 12 94 00 00 01 00 01 02 00 03 01 00 00 00
+F6 31 00 00 12 00 12 94 00 00 01 00 00 02 00 03 01 00 00 00
+```
+
+The tail `02 00 03 01 00 00 00` at `pl[13..19]` is byte-identical between the two bodies. What the
+adapter form drops is the `2F` + index tail at `pl[20..22]`, nothing else.
 
 ## Field map
 
 | Field | Meaning | Confidence |
 | --- | --- | --- |
-| `pl[0..1]` | u16 LE. Takes body-side values (`0x399c` = 14748, `0x2ebb` = 11963, `0x1a2c` = 6700). **The same values appear across two different lenses**, so it is body state, not lens data. | UNKNOWN |
-| `pl[3..4]`, `pl[5..6]` | **Duplicated u16 LE pair = commanded focus position.** SELP1650: `bd 13` = 5053, which equals the lens's own reported position in its first 0x05. Constant through idle, when no AF is commanded. | **PROBABLE** |
-| `pl[7]` | `0x94` at start of session, `0x1c` thereafter | UNKNOWN |
+| `pl[0..1]` | u16 LE. Takes body-side values (`0x399C` = 14748, `0x2EBB` = 11963, `0x1A2C` = 6700 on an A6000; `0x3D6C` = 15724, `0x31F6` = 12790 on an a9 II). **The same values appear across two different lenses**, so it is body state, not lens data. Changes every frame. | UNKNOWN |
+| `pl[3..4]`, `pl[5..6]` | **u16 LE pair = commanded focus position.** SELP1650: `BD 13` = 5053, which equals the lens's own reported position in its first 0x05. Constant through idle, when no AF is commanded. Usually equal, but **not always** — see below. | **PROBABLE** |
+| `pl[7]` | `0x94` at start of session, `0x1C` thereafter. Holds on both bodies. | UNKNOWN |
 | `pl[10]`, `pl[11]` | Small counters — `pl[11]` cycles 0…5 | POSSIBLE (frame/phase counter) |
 | `pl[12]` | 0 or 1 | UNKNOWN |
 | `pl[15]` | `02` or `03` | UNKNOWN |
-| `pl[20]` | `0x2f` constant on natives — an instruction tag rather than an arbitrary constant, see below | PROBABLE |
+| `pl[20]` | `0x2F` constant on natives — an instruction tag rather than an arbitrary constant, see below | PROBABLE |
 | `pl[21..22]` | **Table row index pair** — same value space as message 0x05's `pl[77..78]` (`0x15 0x16 0x17`) | PROBABLE that it is the same index; see below |
+
+### The pair is not always duplicated
+
+On the a9 II the two fields differ in the first frame of a session and agree from the next one on:
+
+| Frame | `pl[3..4]` | `pl[5..6]` |
+| --- | --- | --- |
+| first | 4096 | 4608 |
+| second | 4608 | 4608 |
+
+`pl[3..4]` takes the value `pl[5..6]` held one frame earlier, which reads as a one-frame lag rather
+than a true duplicate. POSSIBLE — two frames is not enough to establish it, and the A6000 shows the
+fields equal throughout idle, which is consistent with either reading when the value is not moving.
+
+Both values sit exactly on the [live focus position](live_focus_position.md) grid of `256/3`:
+`4096 = 48 × 256/3` and `4608 = 54 × 256/3`. Note that the focus target in
+[message 0x04](msg_0x04.md#it-is-not-quantised-like-the-reported-position) does **not** land on that
+grid, so the two body→lens position fields are not interchangeable.
 
 ## The tail is bound to the table-transfer mechanism
 
-The **20-byte variant sent to the Viltrox adapter has no `2f` + index tail at all**. The body
-simply stops asking a device that never answers. That is direct evidence the tail belongs to the
+The **20-byte variant sent to an adapter has no `2F` + index tail at all** — the A6000 to the
+Viltrox, the a9 II to the TECHART LM-EA9. The body simply stops asking a device that never answers. That is direct evidence the tail belongs to the
 optical-table transfer, and it is one of the clearer native/adapter behavioural differences on
 record.
 
 It also means the body sizes this message according to what the lens declared during init — do not
 assume a fixed 23-byte layout.
 
-## `0x2f` is an instruction tag
+## `0x2F` is an instruction tag
 
-`0x2f` at `pl[20]`, followed by two operand bytes, is very likely **"row-index select, two operand
+`0x2F` at `pl[20]`, followed by two operand bytes, is very likely **"row-index select, two operand
 bytes follow"** rather than a constant. PROBABLE.
 
-The evidence is in Yongnuo's implementation, which handles `0x2f` exactly that way: it reads the
+The evidence is in Yongnuo's implementation, which handles `0x2F` exactly that way: it reads the
 next two bytes as an `(idx_lo, idx_hi)` pair and feeds them into the same row-index mechanism that
 drives message 0x05's index field. That is the exact byte value and the exact operand shape seen
 at `pl[20..22]` above.
@@ -83,15 +115,15 @@ One further data point does not settle it either. Yongnuo's implementation compu
 arithmetic rather than an echo of anything the body sent. That constrains the mechanism a little —
 the lens is not merely mirroring the body's tail — but it says nothing about who chooses the tag.
 
-Knowing that `0x2f` is an instruction tag upgrades what the byte *means* without answering this
+Knowing that `0x2F` is an instruction tag upgrades what the byte *means* without answering this
 question: it says nothing about whether the body issues the instruction or merely carries a value
 the lens already uses internally.
 
 ## Manufacturer notes
 
-- **Sony** — natives receive the full 23-byte form with the `2f` + index tail.
+- **Sony** — natives receive the full 23-byte form with the `2F` + index tail.
 - **Viltrox** — the EF adapter receives the 20-byte form, tail omitted, from the same body.
-- **Yongnuo** — treats `0x2f` as a row-index-select instruction with two operand bytes, and
+- **Yongnuo** — treats `0x2F` as a row-index-select instruction with two operand bytes, and
   derives message 0x05's `pl[80]` locally instead of echoing the body.
 
 ## Open questions

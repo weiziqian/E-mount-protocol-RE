@@ -63,6 +63,11 @@ Ten contacts. Pins numbered left to right looking at a lens from the rear:
   period**. CERTAIN — framing therefore needs no heuristic, the CS line delimits it.
 - During the speed change **both CS lines go high with no data for ~5 ms**. This is the only time
   both are high. CERTAIN, and it is a reliable marker for the switch point.
+- A transfer window may be **larger than the frame inside it**. A Sony a9 II clocks a **fixed 32
+  bytes** in every body→lens window regardless of frame length, so a 22-byte frame arrives followed
+  by 10 further bytes. The frame's own `len` field is authoritative; the byte count of the window
+  is not. See [the transfer window](docs/frame_format.md#the-transfer-window-may-exceed-the-frame).
+  CERTAIN on that body.
 
 ---
 
@@ -105,18 +110,43 @@ observed on a Sony A6000, identical every time:
 ```
 B->L 0x01  (32 B)  ->  L->B 0x01  (32 B)     capability bitmap exchange
 B->L 0x07  ( 1 B)  ->  L->B 0x07  (34 B)     identity / lens ID
-B->L 0x0c  ( 1 B)  ->  L->B 0x0c  ( 1 B)
-B->L 0x0b  ( 2 B)  ->  L->B 0x0b  ( 2 B)
+B->L 0x0C  ( 1 B)  ->  L->B 0x0C  ( 1 B)
+B->L 0x0B  ( 2 B)  ->  L->B 0x0B  ( 2 B)
 B->L 0x08  ( 8 B)  ->  L->B 0x08  (201 B)    the big descriptor
 B->L 0x09  ( 4 B)  ->  L->B 0x09  (11 B)
-B->L 0x0d  ( 1 B)  ->  L->B 0x0d  ( 1 B)
+B->L 0x0D  ( 1 B)  ->  L->B 0x0D  ( 1 B)
 B->L 0x10  ( 1 B)  ->  L->B 0x10  ( 1 B)
-B->L 0x0a  (16 B)  ->  L->B 0x0a  (16 B)
+B->L 0x0A  (16 B)  ->  L->B 0x0A  (16 B)
 ```
 
-The gap between the `0x0c` and `0x0b` exchanges (~143 ms → ~164 ms) is where the baud-rate
+The gap between the `0x0C` and `0x0B` exchanges (~143 ms → ~164 ms) is where the baud-rate
 negotiation sits. The `0x10` reply is separated from its request by a long delay
 (169 ms → 1504 ms on the SELP1650) — the lens is presumably initialising hardware. PROBABLE.
+
+### Later bodies request more, in the same order
+
+A Sony a9 II runs the **same sequence with two messages inserted**, and changes nothing else:
+
+```
+A6000    0x01  0x07  0x0C  0x0B              0x08  0x09  0x0D  0x10  0x0A     9 exchanges
+a9 II    0x01  0x07  0x0C  0x0B  0x3F  0x3D  0x08  0x09  0x0D  0x10  0x0A    11 exchanges
+```
+
+The insertions are **[0x3F](docs/msg_0x3F.md), the lens name string**, and
+**[0x3D](docs/msg_0x3D.md)**, both requested between `0x0B` and `0x08`. Neither is requested by the
+A6000. CERTAIN on both bodies.
+
+Two consequences for anyone implementing a lens:
+
+- **The A6000 sequence is one body's, not the protocol's.** A device that answers only those nine
+  IDs stalls on a later body, and the stall is indistinguishable from a dead lens — the body stops
+  requesting and drops the device.
+- **A message being absent from the A6000 handshake says nothing about whether it is needed.**
+  `0x3F` and `0x3D` sit beyond the range the A6000 offers in its
+  [capability bitmap](docs/msg_0x01.md), yet a later body asks for both.
+
+`0x0A` remains the last exchange on both bodies, and answering it is what starts the normal loop.
+After it, the a9 II sends **no further init-class request** for the rest of the session.
 
 **Asymmetry is the norm.** The body's request payload is usually a stub (1 byte, often `00`); the
 lens's reply carries the data. Message 0x08 is the extreme case: 8 bytes out, 201 bytes back.
@@ -135,6 +165,15 @@ Four frames per cycle, **lens first**, one shared `seq`, period ≈ 16.7 ms — 
 
 CERTAIN — this ordering holds for every cycle ever observed.
 
+**The body sends exactly two frames per `BODY_VD_LENS` cycle**, one 0x03 and one 0x04. Measured on
+an a9 II over a 9.5 s session: 123.5 body→lens frames per second against 61.7 VD cycles per second,
+a ratio of 2.00. The ratio is exact and independent of any clock; the absolute rate is not
+distinguishable from 60 Hz. CERTAIN (ratio); POSSIBLE (absolute rate).
+
+The frame counts close arithmetically over the same session — 605 frames of 0x03 against 605 of
+0x04 — which is what establishes that the longer 0x04 forms **replace** the short one rather than
+being sent in addition to it. See [message 0x04](docs/msg_0x04.md).
+
 Two things follow. First, **the lens reports before the body commands**, so 0x05/0x06 are status
 and 0x03/0x04 are the body's response to them, not the other way round. Second, the body varies
 the length of message 0x03 by device class (20 B to the Viltrox, 23 B to both Sony natives, from
@@ -149,7 +188,7 @@ PROBABLE, and worth remembering before assuming a fixed layout.
 | --- | --- | --- | --- |
 | **[0x01](docs/msg_0x01.md)** | both | init | capability bitmap |
 | **[0x03](docs/msg_0x03.md)** | B→L | normal | body status / command, per frame |
-| **[0x04](docs/msg_0x04.md)** | B→L | normal | body mode block, per frame |
+| **[0x04](docs/msg_0x04.md)** | B→L | normal | body mode block and focus target, per frame |
 | **[0x05](docs/msg_0x05.md)** | L→B | normal | lens status + optical table transfer |
 | **[0x06](docs/msg_0x06.md)** | L→B | normal | focus range, subject distance, event channel |
 | **[0x07](docs/msg_0x07.md)** | both | init | identity and lens ID |
@@ -169,8 +208,8 @@ PROBABLE, and worth remembering before assuming a fixed layout.
 | **[0x32](docs/msg_0x32.md)** | ? | ? | implemented but not advertised |
 | **[0x34](docs/msg_0x34.md)** | ? | ? | unknown; holds the 850 pair |
 | **[0x35](docs/msg_0x35.md)** | L→B | init | second carrier for the correction rows |
-| **[0x3D](docs/msg_0x3D.md)** | ? | ? | unknown |
-| **[0x3F](docs/msg_0x3F.md)** | L→B | init | lens name string |
+| **[0x3D](docs/msg_0x3D.md)** | both | init | unknown; requested by later bodies |
+| **[0x3F](docs/msg_0x3F.md)** | both | init | lens name string; requested by later bodies |
 | **[0x4C](docs/msg_0x4C.md)** | ? | ? | beyond the capability bitmap |
 | **[0x5A](docs/msg_0x5A.md)** | ? | ? | beyond the capability bitmap |
 

@@ -41,6 +41,35 @@ match their payloads, yet are accepted by the body on the wire.
 The practical consequence is that a payload can be altered without any checksum fixup — the
 sending side will produce the correct value regardless.
 
+## The transfer window may exceed the frame
+
+A frame is delimited by its chip-select line, but the **number of bytes clocked inside that window
+is not necessarily the length of the frame**.
+
+A Sony a9 II clocks a **fixed 32 bytes** in every body→lens window, whatever the frame inside
+declares:
+
+| Frame | `len` | Bytes in the window | Bytes after the terminator |
+| --- | --- | --- | --- |
+| message 0x03 | 29 | 32 | 3 |
+| message 0x04, short form | 22 | 32 | 10 |
+| message 0x04, tagged form | 23 | 32 | 9 |
+| message 0x04, target form | 27 | 32 | 5 |
+
+CERTAIN on that body: the trailing bytes are genuinely transmitted, not an artefact of the
+receiver. A receiver that had pre-filled its buffer with a marker byte found none of the marker
+left in any window.
+
+**Parse by `len`, never by the byte count of the window.** The frame is self-contained, its
+declared length is honest, and its checksum verifies over exactly that length. A receiver that
+treats "bytes received" as "frame length" is wrong on every frame this body sends.
+
+The content of the trailing bytes is UNKNOWN. After the short 0x04 form they are zero; after the
+tagged and target forms they carry a checksum-shaped byte pair and a `0x55` at window offset 28 —
+the position a 29-byte frame would put its terminator. A fixed-size transmit buffer retaining the
+tail of a previous, longer frame would explain that, but the short 0x04 form should then show the
+same residue and it does not. Recorded as an open question; nothing in the protocol depends on it.
+
 ## Class byte — CERTAIN
 
 | Value | Name | Used for |

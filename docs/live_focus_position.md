@@ -26,6 +26,24 @@ from the lens, one carrying it as a **command** from the body.
 | **[0x28](msg_0x28.md)** | L→B | `[0x0F..0x10]`, frame-relative | The same value, alongside the focal length and the correction rows |
 | **[0x35](msg_0x35.md)** | L→B | `[0x0F..0x10]`, frame-relative | As above, on the request/response channel |
 | **[0x1B](msg_0x1B.md)** | B→L | `pl[0..1]` — the **target**; the reply echoes the lens's current position at `pl[0..1]` and `pl[2..3]` | The command: "focus to this position" |
+| **[0x03](msg_0x03.md)** | B→L | `pl[3..4]` and `pl[5..6]` | The commanded position, once per 60 Hz frame |
+| **[0x04](msg_0x04.md)** | B→L | `pl[14..15]`, present only when `pl[13] = 0x1D` | A focus target, in the same numeric range but **not on this grid** — see below |
+
+**Message 0x04's target is the exception, and it matters.** Its values do not land on the `256/3`
+grid:
+
+| Value | Message | `× 3 / 256` | On the grid? |
+| --- | --- | --- | --- |
+| 4096 | 0x03 `pl[3..4]` | 48.0 | yes |
+| 4608 | 0x03 `pl[5..6]` | 54.0 | yes |
+| 4864 | 0x05, a lens's own report | 57.0 | yes |
+| 4844 | **0x04 `pl[14..15]`** | 56.77 | **no** |
+| 4593 | **0x04 `pl[14..15]`** | 53.82 | **no** |
+
+Both 0x04 values sit inside the travel the lens advertises, so they are in the same numeric space,
+but at a finer resolution than the report. Whether that is a genuinely finer scale, or a different
+quantity whose range merely overlaps, is UNKNOWN. Do not assume a value read from message 0x04 can
+be compared directly against one read from 0x03 or 0x05.
 
 Two consequences worth stating plainly:
 

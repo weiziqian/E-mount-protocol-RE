@@ -1,7 +1,12 @@
 # Message 0x0C — small init exchange
 
 **Summary.** A 1-byte init-class request/response with UNKNOWN semantics. The third exchange of the
-handshake, immediately before the baud-rate negotiation.
+handshake on every body observed, immediately before the baud-rate negotiation.
+
+The reply value matters: a TECHART LM-EA9 answering `01` instead of `00` causes a Sony a9 II to
+**abandon the handshake at this message** and issue no further request. The body treats the wrong
+value as a fatal answer rather than ignoring it, and the failure is indistinguishable from a lens
+that never replied at all. CERTAIN on that body.
 
 **Direction:** both. Body request 1 byte; lens reply 1 byte.
 
@@ -16,7 +21,7 @@ handshake, immediately before the baud-rate negotiation.
 | --- | --- | --- |
 | B→L | Sony A6000, every lens | `02` |
 | L→B | Sony SELP1650, SEL55210, Viltrox EF adapter | `01` |
-| L→B | TECHART LM-EA9 | implements a reply |
+| L→B | TECHART LM-EA9 | `00` |
 
 Every device measured replies with the same single byte, so this exchange carries no per-device
 information on the wire.
