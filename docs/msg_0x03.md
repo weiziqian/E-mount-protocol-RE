@@ -38,7 +38,7 @@ adapter form drops is the `2F` + index tail at `pl[20..22]`, nothing else.
 | Field | Meaning | Confidence |
 | --- | --- | --- |
 | `pl[0..1]` | u16 LE. Takes body-side values (`0x399C` = 14748, `0x2EBB` = 11963, `0x1A2C` = 6700 on an A6000; `0x3D6C` = 15724, `0x31F6` = 12790 on an a9 II). **The same values appear across two different lenses**, so it is body state, not lens data. Changes every frame. | UNKNOWN |
-| `pl[3..4]`, `pl[5..6]` | **u16 LE pair = commanded focus position.** SELP1650: `BD 13` = 5053, which equals the lens's own reported position in its first 0x05. Constant through idle, when no AF is commanded. Usually equal, but **not always** — see below. | **PROBABLE** |
+| `pl[3..4]`, `pl[5..6]` | **u16 LE pair, both [aperture values](aperture_value.md).** `pl[5..6]` is the aperture the body is asking for. `pl[3..4]` is `0x1000` = 4096 = f/1.0 in the first frame of a session and equal to `pl[5..6]` in every frame after it. | Both are apertures **CERTAIN**; what distinguishes the two fields **UNKNOWN** |
 | `pl[7]` | `0x94` at start of session, `0x1C` thereafter. Holds on both bodies. | UNKNOWN |
 | `pl[10]`, `pl[11]` | Small counters — `pl[11]` cycles 0…5 | POSSIBLE (frame/phase counter) |
 | `pl[12]` | 0 or 1 | UNKNOWN |
@@ -46,23 +46,38 @@ adapter form drops is the `2F` + index tail at `pl[20..22]`, nothing else.
 | `pl[20]` | `0x2F` constant on natives — an instruction tag rather than an arbitrary constant, see below | PROBABLE |
 | `pl[21..22]` | **Table row index pair** — same value space as message 0x05's `pl[77..78]` (`0x15 0x16 0x17`) | PROBABLE that it is the same index; see below |
 
-### The pair is not always duplicated
+### The aperture pair
 
-On the a9 II the two fields differ in the first frame of a session and agree from the next one on:
+`pl[5..6]` is an [aperture value](aperture_value.md), and through an idle session it holds one value
+per device — that device's maximum aperture:
 
-| Frame | `pl[3..4]` | `pl[5..6]` |
-| --- | --- | --- |
-| first | 4096 | 4608 |
-| second | 4608 | 4608 |
+| Device | `pl[5..6]` | AV | Aperture | Marked maximum |
+| --- | --- | --- | --- | --- |
+| Viltrox EF adapter + Canon EF 50 mm f/1.8 | 4544 | 1.750 | f/1.83 | f/1.8 |
+| Viltrox EF adapter + Canon EF-S 24 mm f/2.8 | 4864 | 3.000 | f/2.83 | f/2.8 |
+| Sony SELP1650 at 16 mm | 5053 | 3.738 | f/3.65 | f/3.5 |
+| Sony SEL55210 at 55 mm | 5224 | 4.406 | f/4.60 | f/4.5 |
+| Sony SEL55210 at 210 mm | 5470 | 5.367 | f/6.42 | f/6.3 |
 
-`pl[3..4]` takes the value `pl[5..6]` held one frame earlier, which reads as a one-frame lag rather
-than a true duplicate. POSSIBLE — two frames is not enough to establish it, and the A6000 shows the
-fields equal throughout idle, which is consistent with either reading when the value is not moving.
+The lens acts on it. With the Viltrox adapter and the EF 50 mm the body sends 4544 from the first
+frame of the session, and the lens's [message 0x05](msg_0x05.md) `pl[0..1]` walks toward it in
+one-stop steps over the next four frames — 6336, 6080, 5824, 5568, then 4544, where it stays.
 
-Both values sit exactly on the [live focus position](live_focus_position.md) grid of `256/3`:
-`4096 = 48 × 256/3` and `4608 = 54 × 256/3`. Note that the focus target in
-[message 0x04](msg_0x04.md#it-is-not-quantised-like-the-reported-position) does **not** land on that
-grid, so the two body→lens position fields are not interchangeable.
+A lens may clamp the value into its own aperture range before acting on it: below the lens's maximum
+aperture the command is taken as "wide open", and above its minimum it is taken as that minimum.
+
+Once settled, the aperture the lens reports back in message 0x05 is not always the one commanded.
+The two Viltrox adapters report exactly the commanded value; the three Sony lenses report 21–30
+counts wider, about a tenth of a stop.
+
+`pl[3..4]` carries an aperture on the same scale. It is `4096` — `AV 0`, f/1.0, the bottom of the
+encoding — in the first message 0x03 frame of a session, in all five sessions observed, and equal to
+`pl[5..6]` in every one of the 840 frames after it. In the one session where `pl[5..6]` changed
+between the first and second frames, from 5224 to 5470, `pl[3..4]` took 5470 immediately rather than
+the earlier value. What the field is for is **UNKNOWN**.
+
+`pl[14..15]` of [message 0x04](msg_0x04.md) is a focus target on a different scale whose numeric
+range overlaps this one; the two are not interchangeable.
 
 ## The tail is bound to the table-transfer mechanism
 

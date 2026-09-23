@@ -1,156 +1,122 @@
-# Message 0x04 — body mode block and focus target, per frame
+# Message 0x04 — body state and focus command, per frame
 
-**Summary.** A per-frame body→lens block. It has **several payload lengths**: a short form that is
-static through idle, and longer forms selected by a tag byte, one of which carries the **focus
-target** the body wants the lens to move to. Frame 4 of the four-frame 60 Hz loop.
+**Summary.** The channel the body commands focus on. A fixed 13-byte header of body state, sent
+once per 60 Hz frame, optionally followed by one or more **tagged records**; the `0x1D` record
+carries the focus target.
 
 **Direction:** B→L only.
 
 **Class:** normal (`0x01`).
 
-**Payload:** 13 bytes on a Sony A6000. A Sony a9 II sends 13, 14 or 18 bytes depending on state.
+**Payload:** 13 bytes with no records; 14, 17, 18 and 30 bytes observed with records.
 
 `pl` is the payload: `pl[n]` is payload byte `n`, i.e. absolute frame offset `n + 6`. Ranges
 `pl[a..b]` are inclusive of both ends: `pl[a]` through `pl[b]`, length `b - a + 1`.
 
-## The forms replace one another — they are not extra frames
+---
 
-Over one 10-second session with a Sony a9 II, with the shutter half-pressed a few times:
+## Payload structure
 
-| Message | Payload | Frames |
-| --- | --- | --- |
-| 0x03 | 20 B | 605 |
-| **0x04 short** | **13 B** | **595** |
-| **0x04 tagged** | **14 B** | **5** |
-| **0x04 target** | **18 B** | **5** |
+```
+pl[0..12]   header, always present
+pl[13..]    zero or more records, each: 1 tag byte + a fixed number of operand bytes
+```
 
-`595 + 5 + 5 = 605`, exactly the 0x03 count. The body sends **one 0x03 and one 0x04 per frame**,
-and the longer 0x04 forms **replace** the short one rather than being sent alongside it. CERTAIN —
-the arithmetic closes to the frame.
+Records do not extend the message — they **replace** the bare 13-byte form. Over one 10-second
+session with a Sony a9 II: 595 frames of 13 bytes, 5 of 14, 5 of 18, against 605 frames of
+[message 0x03](msg_0x03.md). `595 + 5 + 5 = 605`, so exactly one 0x04 accompanies each 0x03.
 
-So a receiver must accept every length: a device that only recognises the 13-byte form will silently
-discard every focus command the body issues.
+A receiver must accept every length. One that recognises only the 13-byte form discards every focus
+command the body issues.
 
-## Observed payloads
-
-| Body | Device | Payload |
-| --- | --- | --- |
-| A6000 | Sony SELP1650, SEL55210 | `00 00 19 83 00 00 3B 1F 00 00 31 00 00` |
-| A6000 | Viltrox + Canon EF-S 24 | `00 00 19 83 00 00 3B 00 00 00 01 00 00` |
-| a9 II | TECHART LM-EA9, idle | `00 00 19 83 00 00 28 00 00 00 09 00 00` |
-| a9 II | TECHART LM-EA9, tagged | `00 00 19 83 00 00 28 00 00 00 41 00 00 1C` |
-| a9 II | TECHART LM-EA9, target | `00 00 19 83 00 00 28 00 00 00 40 00 00 1D F1 11 00 00` |
-| a9 II | TECHART LM-EA9, target | `00 00 19 83 00 00 28 00 00 00 41 00 00 1D FF 7F 00 00` |
-
-## Field map
+## Header — `pl[0..12]`
 
 | Field | Meaning | Confidence |
 | --- | --- | --- |
-| `pl[0..5]` = `00 00 19 83 00 00` | **Fixed prefix.** Identical on every frame of every body and device observed, at every length. | **CERTAIN** (as a constant); meaning UNKNOWN |
-| `pl[6]` | `0x3B` from the A6000, `0x28` from the a9 II. Constant within a session. | UNKNOWN |
-| `pl[7]` | `0x1F` to natives, `0x00` to adapters | UNKNOWN — but it discriminates device class |
-| `pl[8..9]` | zero | UNKNOWN |
-| `pl[10]` | **Mode byte.** `0x31` A6000→native, `0x01` A6000→Viltrox. On the a9 II it is **not static**: `0x09` while idle, `0x01`/`0x40`/`0x41` on the frames that carry a tag. | PROBABLE (a mode or state code) |
-| `pl[11..12]` | zero | UNKNOWN |
-| **`pl[13]`** | **Tag byte — present only in the longer forms.** Selects what follows. See below. | **PROBABLE** |
-| **`pl[14..15]`** | **Focus target**, u16 LE, when `pl[13] = 0x1D` | **PROBABLE** |
-| `pl[16..17]` | Second 16-bit field alongside the target. Zero in every frame observed. | UNKNOWN |
+| `pl[0..5]` | Fixed prefix `00 00 19 83 00 00`, identical on every frame of every body and device observed, at every length | Constant **CERTAIN**; meaning **UNKNOWN** |
+| `pl[6]` | Constant within a session. Observed: `0x3B`, `0x28`, `0x21`, `0x18` | **UNKNOWN** |
+| `pl[7]` | `0x1F` to devices reporting an E-mount lens ID, `0x00` to devices reporting a legacy ID | Discriminates device class **PROBABLE**; quantity **UNKNOWN** |
+| `pl[8..9]` | Zero in every frame observed | **UNKNOWN** |
+| `pl[10]` | State code. Static within a session from some bodies (`0x31`, `0x01`); varying from others — `0x09` while idle, `0x00`, `0x01`, `0x08`, `0x40`, `0x41` otherwise | A state code **PROBABLE**; the states **UNKNOWN** |
+| `pl[11..12]` | Zero in every frame observed | **UNKNOWN** |
 
-## The tag byte at `pl[13]`
+## Records — `pl[13]` onward
 
-The 13-byte form has no `pl[13]`. Every longer form begins with a tag there, and the tag selects
-the operands that follow:
+| Tag | Total size | Operands |
+| --- | --- | --- |
+| `0x1C` | 1 B | none |
+| `0x1D` | 5 B | focus target, u16 LE; then a second u16 LE, zero in every frame observed |
+| `0x1F` | 14 B | 13 operand bytes, meaning **UNKNOWN** |
+| `0x2F` | 3 B | a row-index pair, the same operand shape [message 0x03](msg_0x03.md) carries at `pl[20..22]` |
 
-| `pl[13]` | Payload length | What follows | Seen from |
-| --- | --- | --- | --- |
-| — | 13 | nothing; this is the short form | A6000, a9 II |
-| `0x1C` | 14 | nothing | a9 II; Yongnuo |
-| **`0x1D`** | **18** | **two u16 LE fields: the focus target and a second, always-zero field** | a9 II |
-| `0x2F` | 17, 30 | a row-index pair and further operands — the same tag and operand shape message 0x03 uses at `pl[20..22]` | Yongnuo |
+The sizes are fixed per tag and account for every observed payload length exactly:
 
-PROBABLE that this is one tagged-operand namespace rather than three unrelated coincidences: the
-`0x2F` case is handled as "row-index select, two operand bytes follow" by an implementation that
-also drives message 0x05's index field from it, and it appears at the same relative position.
+| Payload | Header | Records |
+| --- | --- | --- |
+| 13 | 13 | — |
+| 14 | 13 | `0x1C` |
+| 17 | 13 | `0x2F` + `0x1C` |
+| 18 | 13 | `0x1D` |
+| 30 | 13 | `0x2F` + `0x1F` |
 
 `0x1C` also appears as an operation code in [message 0x06](msg_0x06.md)'s event appendix. Whether
-that is one instruction namespace shared across messages or reuse of a byte value is UNRESOLVED.
+that is one instruction namespace shared across messages, or reuse of a byte value, is **UNKNOWN**.
 
-## The focus target — `pl[14..15]`
+## The focus target — the `0x1D` record
 
-Present when `pl[13] = 0x1D`. A u16 little-endian value in the same numeric space the lens uses to
-report its position.
+A u16 little-endian absolute position, on the scale [message 0x06](msg_0x06.md) reports focus in —
+not the [aperture value](aperture_value.md) scale that the neighbouring fields of
+[message 0x03](msg_0x03.md) use, though the two ranges overlap.
 
-Observed from a Sony a9 II driving a TECHART LM-EA9, which advertises a travel of 4144…5632 and
-reports its own position as 4864:
+Observed from a Sony a9 II driving a device that advertises a travel of 4144…5632: targets spread
+across that travel — 4314, 4381, 4593, 4646, 4844, 4942, 5185, 5439 and the travel limit 5632 among
+them — plus one value far outside it:
 
-| Value | Reading |
-| --- | --- |
-| `0x12EC` = 4844 | inside the advertised travel |
-| `0x11F1` = 4593 | inside the advertised travel |
-| **`0x7FFF` = 32767** | **no-target sentinel** — far outside any travel a lens advertises |
-
-Two distinct in-range values rule out a constant. PROBABLE that this is the commanded absolute
-focus position; the sentinel reading of `0x7FFF` is PROBABLE on the same evidence.
-
-`pl[16..17]` sits immediately after it and has been zero in every frame seen, so its role — a second
-target, a limit, a velocity — is UNKNOWN.
-
-### It is not quantised like the reported position
-
-The [live focus position](live_focus_position.md) advances in steps of `256/3` = 85.333…, and the
-values in message 0x03's position fields land exactly on that grid. **The `pl[14..15]` targets do
-not**:
-
-| Value | `× 3 / 256` | On the grid? |
+| Value | Reading | Confidence |
 | --- | --- | --- |
-| 4096 (message 0x03) | 48.0 | yes |
-| 4608 (message 0x03) | 54.0 | yes |
-| 4864 (lens's reported position) | 57.0 | yes |
-| **4844** (`pl[14..15]`) | 56.77 | **no** |
-| **4593** (`pl[14..15]`) | 53.82 | **no** |
+| 4144…5632 | An absolute focus position inside the advertised travel | **PROBABLE** |
+| **`0x7FFF` = 32767** | No-target sentinel | **PROBABLE** |
 
-So the target is expressed in the same numeric range but at finer resolution than the report.
-Whether that is a genuinely finer scale or a different quantity that merely overlaps the range is
-an open question. POSSIBLE.
+The second u16 of the record, immediately after the target, has been zero in every frame observed,
+so its role — a second target, a limit, a rate — is **UNKNOWN**.
 
-## Longer forms
+## Observed frames
 
-Yongnuo's implementation carries 0x04 forms with payloads of 17 and 30 bytes, fully framed, tagged
-`0x2F`. Shown whole, header and trailer included, with the **payload** between the bars:
+Header and trailer included, payload between the bars.
 
 ```
+Sony A6000 to Sony SELP1650 / SEL55210, every frame of the session
+F0 16 00 01 xx 04 | 00 00 19 83 00 00 3B 1F 00 00 31 00 00                                                    | .. .. 55
+
+Sony A6000 to a Viltrox EF adapter, every frame of the session
+F0 16 00 01 xx 04 | 00 00 19 83 00 00 3B 00 00 00 01 00 00                                                    | .. .. 55
+
+Sony a9 II, idle
+F0 16 00 01 xx 04 | 00 00 19 83 00 00 28 00 00 00 09 00 00                                                    | .. .. 55
+
+Sony a9 II, 0x1C record
+F0 17 00 01 xx 04 | 00 00 19 83 00 00 28 00 00 00 41 00 00 1C                                                 | .. .. 55
+
+Sony a9 II, 0x1D record carrying target 0x12EC = 4844
+F0 1B 00 01 82 04 | 00 00 19 83 00 00 28 00 00 00 40 00 00 1D EC 12 00 00                                     | C1 02 55
+
+Sony a9 II, 0x1D record carrying the 0x7FFF sentinel
+F0 1B 00 01 A1 04 | 00 00 19 83 00 00 28 00 00 00 41 00 00 1D FF 7F 00 00                                     | 61 03 55
+
+To a Yongnuo YN35mm f/1.8S, 0x2F + 0x1C
+F0 1A 00 01 E8 04 | 00 00 19 83 00 00 18 00 00 00 09 00 00 2F 00 00 1C                                        | 0F 02 55
+
+To a Yongnuo YN35mm f/1.8S, 0x2F + 0x1F
 F0 27 00 01 CB 04 | 00 00 19 83 00 00 21 00 00 00 48 00 00 2F 09 0A 1F 02 02 83 88 3D 49 ED 47 3F 46 03 00 00 | AE 05 55
 F0 27 00 01 DF 04 | 00 00 19 83 00 00 18 00 00 00 48 00 00 2F 07 08 1F 06 02 83 98 7D 45 F5 43 10 52 03 00 00 | E6 05 55
-F0 1A 00 01 E8 04 | 00 00 19 83 00 00 18 00 00 00 09 00 00 2F 00 00 1C                                        | 0F 02 55
-F0 17 00 01 00 04 | 00 00 19 83 00 00 21 00 00 00 08 00 00 1C                                                 | FD 00 55
 ```
-
-The fixed prefix and the tag position survive into all of them. The fourth line is the same 14-byte
-`0x1C`-tagged form the a9 II sends.
-
-### The `0x2F` forms sample every branch of the row-index dispatch
-
-Three of them carry `idx_lo` values `9`, `7` and `0` — the "retransmission" (`7`, `9`) and "nothing
-new" (`0`) branches of the row-index dispatch described in
-[message 0x03](msg_0x03.md#0x2f-is-an-instruction-tag). With the `0x15`/`0x16` pair on the
-corresponding 0x03 form, they cover every branch of that dispatch between them.
-
-## Manufacturer notes
-
-- **Sony A6000** — sends only the 13-byte form, byte-identical on every frame of a session. Uses
-  `pl[7] = 0x1F`, `pl[10] = 0x31` to natives and `pl[7] = 0x00`, `pl[10] = 0x01` to the Viltrox EF
-  adapter; both bytes discriminate device class. **It never sends a focus target in this message.**
-- **Sony a9 II** — sends all three lengths, and treats the TECHART LM-EA9 as adapter class
-  (`pl[7] = 0x00`). `pl[10]` varies with state rather than being session-static.
-- **Yongnuo** — carries the `0x2F`-tagged 17- and 30-byte forms.
 
 ## Open questions
 
-- The meaning of the fixed prefix `00 00 19 83 00 00`. UNKNOWN.
-- `pl[6]`, `pl[7]`, `pl[10]`: values differ by body and device class, but the quantities are
-  UNKNOWN.
-- `pl[16..17]` — always zero in every frame observed, so its role is unestablished.
-- Why the target at `pl[14..15]` is not on the `256/3` grid the position report uses.
-- Whether further tag values and longer target-carrying forms exist. Only `0x1C`, `0x1D` and
-  `0x2F` have been seen.
-- Whether `0x1C` is shared with message 0x06's event appendix or a coincidence.
+- The meaning of the fixed prefix `00 00 19 83 00 00`.
+- `pl[6]`, `pl[7]`, `pl[10]` — values differ by body and by device class, but the quantities are
+  unestablished.
+- The 13 operand bytes of the `0x1F` record.
+- The second u16 of the `0x1D` record, zero in every frame observed.
+- Whether tag values beyond `0x1C`, `0x1D`, `0x1F` and `0x2F` exist, and whether more than two
+  records can appear in one frame.

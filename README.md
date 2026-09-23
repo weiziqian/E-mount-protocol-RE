@@ -36,6 +36,14 @@ Every field in this documentation carries one of:
 - [3. Session structure](#3-session-structure)
 - [4. Message Catalogue](#4-message-catalogue)
 
+Two encodings span several messages and have their own files:
+
+- **[The aperture value](docs/aperture_value.md)** — `256 × AV + 4096`, carried by messages 0x05,
+  0x1B, 0x03, 0x28 and 0x35. *(Replaces `live_focus_position.md`, whose reading of these fields was
+  wrong — see the note at the top of that file.)*
+- **[The 6-byte optical rows](docs/optical_data.md)** — the per-lens correction table carried by
+  messages 0x05, 0x28 and 0x35.
+
 ---
 
 # 1. Physical layer
@@ -188,7 +196,7 @@ PROBABLE, and worth remembering before assuming a fixed layout.
 | --- | --- | --- | --- |
 | **[0x01](docs/msg_0x01.md)** | both | init | capability bitmap |
 | **[0x03](docs/msg_0x03.md)** | B→L | normal | body status / command, per frame |
-| **[0x04](docs/msg_0x04.md)** | B→L | normal | body mode block and focus target, per frame |
+| **[0x04](docs/msg_0x04.md)** | B→L | normal | body state and focus command, per frame |
 | **[0x05](docs/msg_0x05.md)** | L→B | normal | lens status + optical table transfer |
 | **[0x06](docs/msg_0x06.md)** | L→B | normal | focus range, subject distance, event channel |
 | **[0x07](docs/msg_0x07.md)** | both | init | identity and lens ID |
@@ -199,9 +207,9 @@ PROBABLE, and worth remembering before assuming a fixed layout.
 | **[0x0C](docs/msg_0x0C.md)** | both | init | small init exchange |
 | **[0x0D](docs/msg_0x0D.md)** | both | init | small init exchange |
 | **[0x10](docs/msg_0x10.md)** | both | init | small init exchange, long reply delay |
-| **[0x16](docs/msg_0x16.md)** | both | init | **shutdown request** — the body waits for the echoed acknowledgement before removing power |
+| **[0x16](docs/msg_0x16.md)** | both | init | shutdown request |
 | **[0x19](docs/msg_0x19.md)** | ? | ? | unknown |
-| **[0x1B](docs/msg_0x1B.md)** | both | normal | command channel — focus target or aperture |
+| **[0x1B](docs/msg_0x1B.md)** | both | init | aperture command |
 | **[0x1D](docs/msg_0x1D.md)** | B→L | ? | probably a frame length, not an ID |
 | **[0x20](docs/msg_0x20.md)** | B→L | ? | probably a frame length, not an ID |
 | **[0x28](docs/msg_0x28.md)** | L→B | init | third carrier for the correction rows |
@@ -216,7 +224,7 @@ PROBABLE, and worth remembering before assuming a fixed layout.
 Messages **0x05, 0x28 and 0x35 all carry the same 6-byte optical rows**, in three different
 layouts. They have their own reference: [the 6-byte optical rows](docs/optical_data.md).
 
-Those same three messages, plus the **0x1B** command channel, all carry the **live focus position** —
+Those same three messages, plus the **0x1B** command channel, all carry the **aperture value** —
 an `n × 256/3` distance index shared by every device on the bus, and emphatically *not* the lens's
 own encoder count. It has its own reference too:
-[the live focus position](docs/live_focus_position.md).
+[the aperture value](docs/aperture_value.md).
