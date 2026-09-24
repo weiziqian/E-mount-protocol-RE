@@ -36,14 +36,6 @@ Every field in this documentation carries one of:
 - [3. Session structure](#3-session-structure)
 - [4. Message Catalogue](#4-message-catalogue)
 
-Two encodings span several messages and have their own files:
-
-- **[The aperture value](docs/aperture_value.md)** — `256 × AV + 4096`, carried by messages 0x05,
-  0x1B, 0x03, 0x28 and 0x35. *(Replaces `live_focus_position.md`, whose reading of these fields was
-  wrong — see the note at the top of that file.)*
-- **[The 6-byte optical rows](docs/optical_data.md)** — the per-lens correction table carried by
-  messages 0x05, 0x28 and 0x35.
-
 ---
 
 # 1. Physical layer
@@ -180,7 +172,7 @@ distinguishable from 60 Hz. CERTAIN (ratio); POSSIBLE (absolute rate).
 
 The frame counts close arithmetically over the same session — 605 frames of 0x03 against 605 of
 0x04 — which is what establishes that the longer 0x04 forms **replace** the short one rather than
-being sent in addition to it. See [message 0x04](docs/msg_0x04.md).
+being sent in addition to it.
 
 Two things follow. First, **the lens reports before the body commands**, so 0x05/0x06 are status
 and 0x03/0x04 are the body's response to them, not the other way round. Second, the body varies
@@ -228,3 +220,8 @@ Those same three messages, plus the **0x1B** command channel, all carry the **ap
 an `n × 256/3` distance index shared by every device on the bus, and emphatically *not* the lens's
 own encoder count. It has its own reference too:
 [the aperture value](docs/aperture_value.md).
+
+Messages **0x04 and 0x06 together form the focus loop**: the body packs focus instructions — move,
+scan, stop, drive — as tagged records into 0x04, and the lens reports its motion and signals
+completion through 0x06. The instructions, the motion each one requires, and how the lens answers
+are described in [how auto focus works](docs/autofocus.md).

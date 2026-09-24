@@ -4,6 +4,9 @@
 once per 60 Hz frame, optionally followed by one or more **tagged records**; the `0x1D` record
 carries the focus target.
 
+What each record asks the lens to do, and how the lens reports back, is described in
+[How auto focus works](autofocus.md).
+
 **Direction:** B→L only.
 
 **Class:** normal (`0x01`).
