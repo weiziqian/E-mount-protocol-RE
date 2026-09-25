@@ -43,16 +43,16 @@ SELP1650    | A0 EA 70 49 1E 0F | E1 B9 12 A6 E1 F6 | ... 15 16 ... DE F2 B6 B9 
 | --- | --- | --- | --- |
 | **`0..1`** | **Aperture** | u16 LE [aperture value](aperture_value.md), the lens's current aperture | **CERTAIN** |
 | `2..3` | Aperture, repeated | The same value again, in every frame of every device observed | **CERTAIN** |
-| `4` | Frames until settled | A countdown. The SEL5518Z sends `03 02 01 00` over four consecutive frames while its reported aperture climbs 4543 → 4758 → 4832 → 4908, then holds `00`. Frozen `00` on the LM-EA9 | **CERTAIN** |
+| `4` | **Aperture settle countdown** | The number of status frames still needed for the aperture to reach the value the body commanded; counts down by one per frame to a resting value. [Section below](#the-aperture-settle-countdown-pl4). Frozen `00` on the LM-EA9 | **CERTAIN** |
 | `5` | — | A per-device value that jumps for a frame or two around motion. Observed: `0x1E`/`0x5E` SELP1650, `0x2C` SEL5518Z, `0x28`/`0xCA` SEL2870, `0x15`/`0x1A` SEL55210, `0x00` on the manual lenses, Yongnuo and the LM-EA9 | **UNKNOWN** |
 | `6..7` | Start-up value | u16, non-zero **only in the first status frame after init**, then zero: 19 SELP1650, 20 SEL55210, 17 SEL5518Z and Viltrox + EF 50. Zero every frame on Yongnuo. The LM-EA9 sends 16 forever, a value no other device sends at all | Behaviour **CERTAIN**; quantity **UNKNOWN** |
-| `8` | State | Not a constant. Sony lenses alternate `0x06`/`0x07`, `0x06` appearing in frames around motion; `0x02`/`0x03` on Yongnuo; frozen `0x07` on the LM-EA9 | Existence **CERTAIN**; the mapping **PROBABLE** |
+| `8` | State | Not a constant. **Bit 0 = aperture at rest**, cleared while the aperture is moving: `0x02` moving / `0x03` at rest on Yongnuo; Sony lenses alternate `0x06`/`0x07`, `0x06` appearing in frames around motion; frozen `0x07` on the LM-EA9. Other bits **UNKNOWN** | Existence **CERTAIN**; bit 0 **PROBABLE** |
 | `9..10`, `11..12` | — | Duplicated u16 pair. **42/42** on every Sony lens, both Viltrox adapters and the LM-EA9; **203/203** on both Yongnuo lenses; **0/0** on the Voigtländer and the Loxia across 1267 frames. Splits by autofocus capability, not by vendor | Values **CERTAIN**; the correlation **PROBABLE** |
 | `13..14`, `15..16` | — | Same split: **340/340** on Sony and the adapters, **407/407** on Yongnuo, **0/0** on both manual lenses | as above |
 | `17..18` | — | u16 LE on the [aperture value](aperture_value.md) grid, floored at `0x11C0` (4544 = f/1.83) with a default of `0x1400` (5120 = f/4). Zero on every Sony lens, both Viltrox adapters and the LM-EA9 | Encoding **CERTAIN**; quantity **UNKNOWN** |
 | `19` | — | A boolean. Zero on every device observed | **UNKNOWN** |
-| `20..21` | **Subject distance** | u16. Only the Voigtländer 15 mm populates it: turning its focus ring 0.3 m → ∞ walks it through 272, 299, 320, 351, 384, 448 and then `0x0700`. Every Sony lens, both Viltrox adapters and the LM-EA9 send a constant `0x0700`, which reads as **"no distance data"** rather than a protocol constant | Focus dependence **CERTAIN**; units **PROBABLE** (mm) |
-| `22` | **Flags** | **Bit 7** set on every device that reports motion. **Bit 6 = focus moving**, set and cleared together with the direction byte at `pl[60]`. Bits 0–5 are per-lens and static within a session: `0x38` SELP1650, `0x3C` SEL55210, `0x04` SEL2870, `0x08` SEL5518Z, `0x00` Loxia and Voigtländer. Frozen `0x80` on the LM-EA9 | Bits 7 and 6 **CERTAIN**; bits 0–5 **UNKNOWN** |
+| `20..21` | **Subject distance** | u16 LE [distance code](autofocus.md#25-the-distance-code): `384 + 64 × log2(D)`, `D` in metres, so 1 m = 384 and each doubling adds 64; **`0x0700` = infinity, or no distance data**. The Voigtländer 15 mm walks 272, 299, 320, 351, 384, 448, `0x0700` as its ring turns 0.3 m → ∞ — exactly 0.3, 0.4, 0.5, 0.7, 1 and 2 m, the marks on its distance scale. A lens with electronic focus computes it from its focus position every frame. Every Sony lens measured, both Viltrox adapters and the LM-EA9 send a constant `0x0700` | Encoding **CERTAIN**; Sony's constant `0x0700` read as "not reported" **PROBABLE** |
+| `22` | **Flags** | **Bit 7** set on every device that reports motion. **Bit 6 = lens in motion**: set while focus is being driven, while the focus ring is being turned (see `pl[60]`), and, on at least one lens, while the aperture is moving. Bits 0–5 are per-lens and static within a session: `0x38` SELP1650, `0x3C` SEL55210, `0x04` SEL2870, `0x08` SEL5518Z, `0x00` Loxia and Voigtländer. Frozen `0x80` on the LM-EA9 | Bit 7 and bit 6 for focus motion **CERTAIN**; bit 6 for aperture motion **POSSIBLE**; bits 0–5 **UNKNOWN** |
 | `23` | Subject distance, coarse | Focus-dependent. Over the Voigtländer's 0.3 m → ∞ sweep it takes 55 distinct values climbing monotonically `0x93` → `0xFF`. As a signed byte it is ≈ **−32 × dioptres**: `0x93` = −109, 109/32 = 3.41 dpt = 0.293 m, that lens's minimum focus distance; `0xFF` = −1 ≈ infinity. Sony lenses send a per-session constant (`0xFF` SELP1650 / SEL55210 / SEL5518Z, `0xD9` = 1.22 dpt ≈ 0.8 m SEL2870). The LM-EA9 sends `0xFF` forever | Focus dependence **CERTAIN** (536 frames, one lens); the −1/32 dpt scale **PROBABLE** |
 | **`24..25`**, **`26..27`** | **Focal length** | Duplicated u16 LE pair, mm × 10. Wide/tele on a zoom, near-equal on a prime. [Table below](#focal-length) | **CERTAIN** |
 | `28..29` | — | u16. Observed: 271 LM-EA9, **310 on both Yongnuo lenses**, 320 SEL5518Z, 312 SEL2870, 272 Voigtländer, 256 SELP1650, 384 SEL55210, **0 on the Loxia and both Viltrox adapters**. Two lenses of different focal length and format sharing one value rules out a per-lens optical quantity; three devices sending 0 while working show the field is optional | **UNKNOWN.** Ruled out: exit-pupil distance, maximum aperture, and "required" |
@@ -60,10 +60,10 @@ SELP1650    | A0 EA 70 49 1E 0F | E1 B9 12 A6 E1 F6 | ... 15 16 ... DE F2 B6 B9 
 | **`32..37`** | **Optical row, slot A** | [Slot A](optical_data.md#4-slot-a--the-field-sampling-grid). Aperture-independent; changes only when the row index changes | Encoding **CERTAIN**; quantity **POSSIBLE** |
 | **`38..43`** | **Optical row, slot B** | [Slot B](optical_data.md#1-what-the-rows-carry). Alternates every frame between a type-1 and a type-0 row. Type 1 scales as `1/F` | Encoding **CERTAIN**; `∝ 1/F` **CERTAIN** |
 | **`44..59`** | **Aperture descriptor** | Maximum and minimum aperture in a second encoding. [Section below](#the-aperture-descriptor-pl4459) | Encoding **CERTAIN** |
-| `54..55` | Distance still to run | `pl[54]` is a coarse remaining-distance byte, `pl[55]` zero. Non-zero (`0x01`) on the SEL5518Z during its power-on sweep, zero once settled. Always zero on the LM-EA9 | **CERTAIN** |
-| `60` | **Travel direction** | Signed byte: `0x00` stationary, `0x01` and `0xFF` the two directions. Set and cleared with `pl[22]` bit 6. Observed on the Voigtländer: `0xFF` throughout its sweep, `0x00` once settled, `0x01` on a brief reverse. Always zero on the LM-EA9 | **CERTAIN** |
+| `54..55` | Coarse focus position | `pl[54]` = the focus position counted from the infinity end, divided by 256 (0 near infinity); `pl[55]` zero. Non-zero (`0x01`) on the SEL5518Z during its power-on sweep, zero once settled at infinity. Always zero on the LM-EA9 | Behaviour **CERTAIN**; the position reading **POSSIBLE** — "distance still to run" fits the same observations |
+| `60` | **Focus ring direction** | Signed byte: `0x01` and `0xFF` for the two directions the manual focus ring is being turned, `0x00` when it is still. Held for a few frames (about ten) after the ring stops. Moves the body commands do not set it. Observed on the Voigtländer, a manual lens: `0xFF` throughout a ring sweep, `0x00` once settled, `0x01` on a brief reverse. Always zero on the LM-EA9 | Ring rotation **PROBABLE**; hold time **POSSIBLE** |
 | `61` | — | `0x01` on most devices | **UNKNOWN** |
-| `62` | Drive status | `0x01` or `0x03` on Yongnuo; frozen `0x01` on the LM-EA9. Position and shape fit "actively driving vs. settled" | Existence **CERTAIN**; meaning **PROBABLE** |
+| `62` | Lens switch | Two values, `0x01` and `0x03`, following a two-position control on the lens barrel. Updated only while no focus move is running or pending. Frozen `0x01` on the LM-EA9. Which value means which switch position is not established | Existence **CERTAIN**; switch reading **POSSIBLE** (supersedes the earlier "drive status" reading) |
 | **`77..78`** | **Row index** | A duplicated byte pair naming the row carried in slots C and D. Cycles `0x15, 0x16, 0x17` in the main loop and `0x09, 0x0B, 0x0C` during init. Some values mark **"nothing new this frame"** rather than a position — `0x00`, and on Yongnuo also `0x07`/`0x09`, deliver null rows with distinctive tag bytes. Whether the marker values are shared across vendors is **UNKNOWN** | Index **CERTAIN**; null-marker convention **PROBABLE**; the values **not portable** |
 | `79` | Second index pair, byte 0 | `0x00` on every device measured | **UNKNOWN** |
 | **`80`** | Second index pair, byte 1 | A 14-entry lookup on the row tag `pl[78]`. [Section below](#pl80-and-modern-body-compatibility) | **CERTAIN** |
@@ -146,6 +146,56 @@ The tags come in pairs sharing a value, and the values fall into two series, 6·
 10·(1,2,3), then 50. The **mapping** is established; what the values mean is **UNKNOWN**.
 
 ---
+
+## The aperture settle countdown, `pl[4]`
+
+`pl[4]` tells the body how many more frames an aperture change will take. It lets the body know,
+without waiting and watching `pl[0..1]`, when the aperture will be at its commanded value.
+
+### Mechanism
+
+1. **The body commands a new aperture.** If the lens is already there, nothing happens and `pl[4]`
+   stays at its resting value.
+2. **The lens works out how long the move will take.** It plans the iris movement from the
+   current position to the target — accelerate, run, decelerate — and computes the total time in
+   milliseconds.
+3. **It converts that time to frames** and writes the result to `pl[4]`. One implementation uses
+   `frames = (t_ms + 1) / 19 + 1` with integer division — the move time in units of about 19 ms,
+   rounded up.
+4. **It counts down.** Each 0x05 carries the current count, and the count drops by one after
+   every frame, until it reaches the resting value.
+5. **A new command during the move restarts the count** from the time the new move will take.
+
+While the count runs, the aperture is moving: `pl[0..1]` reports the aperture as it changes, and
+`pl[8]` bit 0 is clear. When the count reaches its resting value, `pl[0..1]` holds the settled
+aperture and `pl[8]` bit 0 is set again.
+
+### Worked example
+
+An iris move planned at 50 ms gives `(50 + 1) / 19 + 1 = 3`:
+
+| Frame | `pl[4]` | Aperture |
+| --- | --- | --- |
+| first 0x05 after the command | 3 | moving |
+| next | 2 | moving |
+| next | 1 | moving |
+| next | resting value | settled |
+
+### Observed
+
+| Device | Sequence | Resting value |
+| --- | --- | --- |
+| Sony SEL5518Z | `03 02 01 00` over four consecutive frames while `pl[0..1]` climbs 4543 → 4758 → 4832 → 4908 | `00` |
+| Yongnuo lenses | counts down to `01` | `01` |
+| TECHART LM-EA9 | frozen | `00` |
+
+| Aspect | Confidence |
+| --- | --- |
+| `pl[4]` counts the frames until the commanded aperture is reached | **CERTAIN** |
+| The count is derived from the planned iris move time | **PROBABLE** |
+| About 19 ms per counted frame | **POSSIBLE** |
+| A new command restarts the count | **POSSIBLE** |
+| The resting value is `00` or `01` depending on the lens, and either is acceptable to a body | **PROBABLE** |
 
 ## The aperture descriptor, `pl[44..59]`
 

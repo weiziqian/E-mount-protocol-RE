@@ -46,8 +46,10 @@ sending side will produce the correct value regardless.
 A frame is delimited by its chip-select line, but the **number of bytes clocked inside that window
 is not necessarily the length of the frame**.
 
-A Sony a9 II clocks a **fixed 32 bytes** in every body→lens window, whatever the frame inside
-declares:
+### The normal loop
+
+A Sony a9 II clocks **32 bytes** in the body→lens windows of the normal loop, whatever the frame
+inside declares:
 
 | Frame | `len` | Bytes in the window | Bytes after the terminator |
 | --- | --- | --- | --- |
@@ -60,9 +62,50 @@ CERTAIN on that body: the trailing bytes are genuinely transmitted, not an artef
 receiver. A receiver that had pre-filled its buffer with a marker byte found none of the marker
 left in any window.
 
+### 32 is not the only window size
+
+Counting the distinct window sizes across whole sessions on the same body gives more than one, and
+32 is not always among the first seen:
+
+| Session | Distinct window sizes, in order of first appearance |
+| --- | --- |
+| 1 | 48, 16, 32 |
+| 2 | 48, 16, 32, 27 |
+| 3 | 48, 16, 32 |
+| 4 | 48, 16, 32, 23 |
+
+`48` and `16` appear before `32` in every session, and the init handshake precedes the normal loop,
+so the two are **probably** init-class windows — but which frame arrives in which window has not
+been measured, only inferred from the order. `23` and `27` appear late and only in some sessions.
+
+| Aspect | Confidence |
+| --- | --- |
+| Windows of 16, 23, 27, 32 and 48 bytes all occur on one body in one session | **CERTAIN** |
+| 32 is the size used throughout the normal loop | **CERTAIN** |
+| 48 and 16 belong to the init handshake | **PROBABLE** |
+| What determines the size of any given window | **UNKNOWN** |
+
+### Windows shorter than the frame also occur
+
+Three of those four sessions recorded exactly one window carrying **fewer** bytes than the frame in
+it declared. One per session is too few to characterise and too consistent to dismiss.
+
+### Parse by `len`, and clamp to what arrived
+
 **Parse by `len`, never by the byte count of the window.** The frame is self-contained, its
 declared length is honest, and its checksum verifies over exactly that length. A receiver that
 treats "bytes received" as "frame length" is wrong on every frame this body sends.
+
+For a message whose payload is a [record stream](autofocus.md#2-message-0x04--lengths-and-records)
+this is not a matter of tidiness. Walking records to the end of the *window* takes in the checksum,
+the terminator and the padding, and `0x55` — the terminator — is a perfectly good operand byte. A
+receiver that did so manufactured focus instructions out of its own trailer: in one session, 1019
+of 1019 message 0x04 frames produced a spurious record, including four Drives and eight queries the
+body never sent, and one invented Move whose operand was the checksum's high byte and the
+terminator. It drove the focus group the full length of its travel.
+
+So the bound is **both**: `min(len, bytes received)`. The declared length alone is wrong when a
+window is short of it, and the received count alone is wrong whenever the window is padded.
 
 The content of the trailing bytes is UNKNOWN. After the short 0x04 form they are zero; after the
 tagged and target forms they carry a checksum-shaped byte pair and a `0x55` at window offset 28 —

@@ -63,10 +63,11 @@ Ten contacts. Pins numbered left to right looking at a lens from the rear:
   period**. CERTAIN — framing therefore needs no heuristic, the CS line delimits it.
 - During the speed change **both CS lines go high with no data for ~5 ms**. This is the only time
   both are high. CERTAIN, and it is a reliable marker for the switch point.
-- A transfer window may be **larger than the frame inside it**. A Sony a9 II clocks a **fixed 32
-  bytes** in every body→lens window regardless of frame length, so a 22-byte frame arrives followed
-  by 10 further bytes. The frame's own `len` field is authoritative; the byte count of the window
-  is not. See [the transfer window](docs/frame_format.md#the-transfer-window-may-exceed-the-frame).
+- A transfer window may be **larger than the frame inside it**, and occasionally smaller. A Sony
+  a9 II clocks 32 bytes in every body→lens window of the normal loop regardless of frame length, so
+  a 22-byte frame arrives followed by 10 further bytes; other sizes occur elsewhere in a session.
+  Parse by the frame's own `len`, clamped to the bytes actually received — neither alone is safe.
+  See [the transfer window](docs/frame_format.md#the-transfer-window-may-exceed-the-frame).
   CERTAIN on that body.
 
 ---
