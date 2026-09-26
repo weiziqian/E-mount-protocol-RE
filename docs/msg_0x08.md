@@ -122,3 +122,72 @@ its own helicoid.
 - The meaning of the 154 boilerplate bytes.
 - Whether the 23-byte "prime vs zoom" group really is zoom/OSS-related. One zoom against two primes.
 - The 9 all-differ bytes beyond the focus position and travel range.
+
+## Request frames, observed
+
+Whole frames, checksums verified:
+
+```
+Sony a9 II   F0 11 00 02 00 08 | C6 E1 00 00 F9 0D 62 02 | 2C 03 55
+Sony A6000                     | C2 61 00 00 00 0C 62 02 |
+```
+
+17 bytes: the 6-byte header, 8 payload bytes, and the 3-byte trailer.
+
+| `pl` | a9 II | A6000 | |
+| --- | --- | --- | --- |
+| `0` | `C6` | `C2` | **UNKNOWN** |
+| **`1`** | **`E1`** | **`61`** | **bit 7 is the capability bit below**; the rest **UNKNOWN** |
+| `2..3` | `00 00` | `00 00` | **UNKNOWN** |
+| `4` | `F9` | `00` | **UNKNOWN** |
+| `5` | `0D` | `0C` | **UNKNOWN** |
+| `6..7` | `62 02` | `62 02` | Constant across both bodies. **UNKNOWN** |
+
+## The request enables an optional field in messages 0x28 and 0x35
+
+**Bit 7 of `pl[1]` of the body's request is a capability bit.** Cleared, it tells the lens to
+populate `pl[9..10]` of [message 0x28](msg_0x28.md) and of [message 0x35](msg_0x35.md); set, those
+two bytes are left at zero in both.
+
+| `pl[1]` bit 7 | msg 0x28 / 0x35 `pl[9..10]` |
+| --- | --- |
+| 0 | the lens's current [aperture value](aperture_value.md) |
+| 1 | **not written** |
+
+The lens latches the bit when it answers message 0x08 and applies it to every later 0x28 and 0x35
+of the session, so it is negotiated once at init rather than per request. The message is sent
+**exactly once per session**, sixth in the handshake, in every session observed.
+
+### The two bodies disagree, and the bit is the only payload byte that says so
+
+| Body | `pl[1]` | bit 7 | wants `pl[9..10]` |
+| --- | --- | --- | --- |
+| Sony A6000 | `0x61` | clear | **yes** |
+| Sony a9 II | `0xE1` | set | **no** |
+
+`0xE1 ^ 0x61 = 0x80` — the two differ in exactly that bit.
+
+### Ignoring the bit has a visible cost
+
+**A lens that populates `pl[9..10]` when the body did not ask for it breaks the body's metering.**
+On a Sony a9 II — which sets the bit, i.e. does not want the field — an adapter that filled it in
+anyway made the camera **re-meter after every exposure**, and produced metering errors during
+continuous shooting. Removing the value, so the field is zero as the bit asks, fixed both.
+
+CERTAIN on that body: the behaviour appeared and disappeared with that field alone, everything else
+held still.
+
+So the field is not merely optional — it is **harmful to send unasked**, and a lens must follow the
+bit rather than always filling the field in "for completeness".
+
+| Aspect | Confidence |
+| --- | --- |
+| `pl[1]` bit 7 of the request gates `pl[9..10]` in both messages | **PROBABLE** |
+| It is latched at init and not re-read per request | **PROBABLE** |
+| Populating the field against the bit disturbs metering | **CERTAIN** on a Sony a9 II |
+| What the body does with the field when it *is* populated | **UNKNOWN** |
+
+A device that never populates the field is not broken: a TECHART LM-EA9 sends zero in message 0x28
+`pl[9..10]` always, and the photographs it produces still record the aperture correctly. So the body
+has another source for the same quantity, most obviously [message 0x05](msg_0x05.md) `pl[0..1]`,
+which arrives sixty times a second.

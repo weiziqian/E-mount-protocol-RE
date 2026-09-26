@@ -208,17 +208,22 @@ N = 2^((v − 8) / 16)
 | `pl` | Meaning |
 | --- | --- |
 | `44` | **Maximum** aperture |
-| `46` | `pl[44] − 8`, one stop wider, on all three devices that populate the field. Purpose **UNKNOWN** |
+| `46` | A second aperture, at or wider than `pl[44]`. Purpose **UNKNOWN** — see below |
 | `48` | `0xA0` constant. **UNKNOWN** |
 | `51` | A second copy of `pl[44]` |
 | `52` | **Minimum** aperture |
 | `59` | `0x01` constant. **UNKNOWN** |
 
-| Device | `pl[44]` | Maximum | `pl[52]` | Minimum |
-| --- | --- | --- | --- | --- |
-| Viltrox EF adapter + Canon EF 50 mm f/1.8 | `0x16` | f/1.83 | `0x50` | f/22.6 |
-| Viltrox EF adapter + Canon EF-S 24 mm f/2.8 | `0x20` | f/2.83 | `0x50` | f/22.6 |
-| TECHART LM-EA9 | `0x18` | f/2.0 | `0x70` | f/90 |
+| Device | `pl[44]` | Maximum | `pl[46]` | `pl[52]` | Minimum |
+| --- | --- | --- | --- | --- | --- |
+| Viltrox EF adapter + Canon EF 50 mm f/1.8 | `0x16` | f/1.83 | `0x0E` | `0x50` | f/22.6 |
+| Viltrox EF adapter + Canon EF-S 24 mm f/2.8 | `0x20` | f/2.83 | `0x18` | `0x50` | f/22.6 |
+| TECHART LM-EA9 | `0x18` | f/2.0 | **`0x18`** | `0x70` | f/90 |
+
+**`pl[46]` is not always `pl[44] − 8.`** It is one stop wider than the maximum on the two Viltrox
+adapters and **equal to it** on the LM-EA9. So a device that copies the "one stop wider" relation
+declares an aperture wider than its own stated maximum, in a field whose purpose is unknown, which
+is worth avoiding until the field is understood. Setting `pl[46] = pl[44]` is the safe choice.
 
 **All eight native lenses held send zero here.** They carry E-mount lens IDs (`0x8xxx`) and report
 their aperture at `pl[0..1]`; the three devices that populate the descriptor are exactly those with

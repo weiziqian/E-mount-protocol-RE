@@ -22,7 +22,7 @@ by three bytes apiece. The same content [message 0x28](msg_0x28.md) carries cont
 | **`4..5`** | 2 | **Focal length** | u16 LE, mm × 10. Same encoding as [message 0x05](msg_0x05.md) `pl[24..25]` | **CERTAIN** |
 | **`6..7`** | 2 | **Focal length** | u16 LE, mm × 10. The second of the pair; equal to `pl[4..5]` on a prime | **CERTAIN** |
 | `8` | 1 | — | Purpose unknown. Observed values: `0x01`, `0x03`, `0xFF` | **UNKNOWN** |
-| `9..10` | 2 | — | A value on the [aperture value](aperture_value.md) scale. [Message 0x28](msg_0x28.md) carries the aperture itself at the same offset | **POSSIBLE** |
+| `9..10` | 2 | —, **optional** | A value on the [aperture value](aperture_value.md) scale. [Message 0x28](msg_0x28.md) carries the aperture itself at the same offset, and the same [message 0x08](msg_0x08.md#the-request-enables-an-optional-field-in-messages-0x28-and-0x35) capability bit gates both | **POSSIBLE** |
 | **`11..16`** | 6 | **Optical row A** | [Slot A](optical_data.md#4-slot-a--the-field-sampling-grid) | **CERTAIN** |
 | `17..19` | 3 | Secondary block | Not part of the optical row pair. Zero on some devices, non-zero on others | Existence **CERTAIN**; purpose **UNKNOWN** |
 | **`20..25`** | 6 | **Optical row B** | [Slot B](optical_data.md#1-what-the-rows-carry) | **CERTAIN** |

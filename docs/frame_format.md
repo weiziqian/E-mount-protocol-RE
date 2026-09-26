@@ -60,7 +60,15 @@ inside declares:
 
 CERTAIN on that body: the trailing bytes are genuinely transmitted, not an artefact of the
 receiver. A receiver that had pre-filled its buffer with a marker byte found none of the marker
-left in any window.
+left in any window. Confirmed again on a second receiver, which captured whole windows with their
+declared length beside the byte count:
+
+```
+id 0x03, len 29, window 32:  F0 1D 00 01 9B 03 ... FE 01 55 | 00 00 00
+id 0x04, len 22, window 32:  F0 16 00 01 9B 04 ... 80 01 55 | 00 00 00 00 00 00 00 00 00 00
+```
+
+The padding is zero in both, and none of it was the marker, so the body really does clock it.
 
 ### 32 is not the only window size
 

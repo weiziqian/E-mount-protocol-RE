@@ -23,7 +23,7 @@
 | **`4..5`** | 2 | **Focal length** | u16 LE, mm × 10. Same encoding as [message 0x05](msg_0x05.md) `pl[24..25]` | **CERTAIN** |
 | **`6..7`** | 2 | **Focal length** | u16 LE, mm × 10. The second of the pair; equal to `pl[4..5]` on a prime | **CERTAIN** |
 | `8` | 1 | — | Purpose unknown. Observed value: `0x01` | **UNKNOWN** |
-| `9..10` | 2 | Aperture | u16 LE [aperture value](aperture_value.md), the same quantity message 0x05 reports at `pl[0..1]` | **PROBABLE** |
+| `9..10` | 2 | Aperture, **optional — see below** | u16 LE [aperture value](aperture_value.md), the same quantity message 0x05 reports at `pl[0..1]`. Written **only** when the body asked for it; zero otherwise | **PROBABLE** |
 | **`11..16`** | 6 | **Optical row A** | [Slot A](optical_data.md#4-slot-a--the-field-sampling-grid) | **CERTAIN** |
 | **`17..22`** | 6 | **Optical row B** | [Slot B](optical_data.md#1-what-the-rows-carry) | **CERTAIN** |
 | `23..34` | 12 | — | Purpose unknown | **UNKNOWN** |
@@ -35,6 +35,28 @@ layout in which the pair is easiest to read.
 A device that carries the rows in one of these three messages and not the others is inconsistent;
 so is one whose focal length here disagrees with message 0x05's.
 
+## `pl[9..10]` must follow the body's request, and must not be volunteered
+
+Whether this field is populated is **the body's decision, not the lens's.** Bit 7 of `pl[1]` in the
+body's [message 0x08](msg_0x08.md#the-request-enables-an-optional-field-in-messages-0x28-and-0x35)
+request carries it, inverted:
+
+| `pl[1]` bit 7 of the 0x08 request | what this field must contain |
+| --- | --- |
+| **clear** | the lens's current [aperture value](aperture_value.md) |
+| **set** | **zero** |
+
+The request arrives once per session, sixth in the init handshake, so a lens latches the bit there
+and applies it to every 0x28 it sends afterwards.
+
+**Sending the aperture unasked is not harmless.** A Sony a9 II sets the bit — it does not want the
+field. An adapter that filled it in regardless made that body **re-meter after every exposure**, and
+produced metering errors in continuous shooting. Zeroing the field, as the bit asks, fixed both;
+nothing else changed. CERTAIN on that body.
+
+A Sony A6000 clears the bit, so the same lens must populate the field there. Following the bit is
+therefore not optional in practice either — it is the only behaviour that is correct on both.
+
 ## Example frame
 
 A TECHART LM-EA9, which carries a focal length and leaves the optical rows nearly empty. The length
@@ -44,7 +66,8 @@ field is `00 00` and the checksum `00 00`; both are filled in at send time.
 F0 00 00 02 00 28 | 00 07 00 FF F4 01 F4 01 01 00 00 00 00 09 00 00 00 22 00 00 00 00 00 16 00 0E 00 56 00 00 16 50 00 00 00 | 00 00 55
 ```
 
-`pl[4..5]` and `pl[6..7]` are both `F4 01` = 500 = 50.0 mm.
+`pl[4..5]` and `pl[6..7]` are both `F4 01` = 500 = 50.0 mm. `pl[9..10]` is `00 00`: that device
+never populates the aperture, and its photographs still record the aperture correctly.
 
 ## Who requests it
 
@@ -92,5 +115,7 @@ traced to an output.
 - Whether a body requests the message more than once per exposure, and whether it ever requests it
   outside an exposure sequence.
 - Whether the aperture at `pl[9..10]` and the optical rows are also consumed at exposure time, as
-  the focal length is, or are read from the status loop instead.
+  the focal length is, or are read from the status loop instead. A device that sends zero there
+  still produces correctly-tagged photographs, so for the aperture the answer is **the status loop**
+  — or at least, not this field alone.
 - Which message supplies the focal length a body *displays*, as opposed to the one it records.

@@ -69,8 +69,8 @@ skip exactly 13 bytes to reach the records.
 
 | Field | Meaning | Confidence |
 | --- | --- | --- |
-| `pl[0..5]` | Prefix `0x00 0x00 0x19 0x83 0x00 0x00` in every frame observed | Constant **CERTAIN**; meaning **UNKNOWN** except `pl[3]` |
-| `pl[3]` | **Focus control mode.** `0x83` = focus is driven by the body (AF); `0x81` = manual focus by wire, the lens follows its own focus ring (§3.5). A lens switches only while focus is at rest and nothing is pending. Only `0x83` has been observed | **POSSIBLE** |
+| `pl[0..5]` | Prefix `0x00 0x00 0x19` then `pl[3]`, then `0x00 0x00` | Constant **CERTAIN** apart from `pl[3]`; meaning **UNKNOWN** except `pl[3]` |
+| `pl[3]` | **Focus control mode.** `0x83` = focus is driven by the body (AF); `0x81` = manual focus by wire, the lens follows its own focus ring (§3.5). A lens switches only while focus is at rest and nothing is pending. **Both values have now been seen**: `0x83` throughout the earlier captures, and `0x81` in the first frames of the normal loop on a Sony a9 II | **POSSIBLE** |
 | `pl[6]` | Constant within a session; `0x3B`, `0x28`, `0x21`, `0x18` observed | **UNKNOWN** |
 | `pl[7]` | `0x1F` or `0x00` depending on the device class | **UNKNOWN** |
 | `pl[10]` | Body state code. `0x09` while idle; `0x40`, `0x41` alongside focus-position records; `0x48` alongside scan records; `0x08`, `0x00`, `0x01` otherwise | A state code **PROBABLE**; individual states **UNKNOWN** |
@@ -338,6 +338,20 @@ this mode is **UNKNOWN**. The reporting changes as follows:
 
 With `pl[3] = 0x83` the ring is ignored. POSSIBLE throughout, except the ring-direction and
 subject-distance behaviour of 0x05, which has been observed on a manual lens (PROBABLE).
+
+**`0x81` is sent.** Observed on a Sony a9 II in a session where the photographer used manual focus
+for part of it — `pl[0..5]` = `00 00 19 81 00 00`, with `pl[6]` = `0x28` and `pl[10]` = `0x08`:
+
+```
+F0 16 00 01 9B 04 | 00 00 19 81 00 00 28 00 00 00 08 00 00 | 80 01 55
+F0 16 00 01 9C 04 | 00 00 19 81 00 00 28 00 00 00 08 00 00 | 81 01 55
+```
+
+The same session also issued Move records, which are body-driven focus, so **the mode is not fixed
+for a session** — the body changes it, and the focus-mode control is the obvious cause.
+
+What a lens is required to do on receiving `0x81` is **UNKNOWN**, and untested: the device these
+frames were captured on has no focus ring of its own to follow.
 
 ---
 
