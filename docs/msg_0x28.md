@@ -25,7 +25,7 @@
 | `8` | 1 | — | Purpose unknown. Observed value: `0x01` | **UNKNOWN** |
 | `9..10` | 2 | Aperture, **optional — see below** | u16 LE [aperture value](aperture_value.md), the same quantity message 0x05 reports at `pl[0..1]`. Written **only** when the body asked for it; zero otherwise | **PROBABLE** |
 | **`11..16`** | 6 | **Optical row A** | [Slot A](optical_data.md#4-slot-a--the-field-sampling-grid) | **CERTAIN** |
-| **`17..22`** | 6 | **Optical row B** | [Slot B](optical_data.md#1-what-the-rows-carry) | **CERTAIN** |
+| **`17..22`** | 6 | **Optical row B** | [Slot B](optical_data.md#1-what-the-rows-carry). Only the [type 1](optical_data.md#34-byte-0-bit-7--the-row-type-flag--probable) row appears here: message 0x05 alternates the two types frame by frame, this message does not | **CERTAIN** |
 | `23..34` | 12 | — | Purpose unknown | **UNKNOWN** |
 
 The two optical rows are **contiguous** here. [Message 0x05](msg_0x05.md) interleaves them into
