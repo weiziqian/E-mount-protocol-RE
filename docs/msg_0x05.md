@@ -7,18 +7,50 @@ optical-correction rows streamed a few per frame. Frame 1 of the four-frame 60 H
 
 **Class:** normal (`0x01`).
 
-**Payload:** 96 bytes (105-byte frame) or 108 bytes (117-byte frame). A lens uses one variant and
-never the other.
+**Payload:** 96 bytes (105-byte frame) or 108 bytes (117-byte frame). The length is fixed for the
+session at init, from the lens's own [message 0x08](msg_0x08.md) and the body's
+[message 0x0A](msg_0x0A.md) — see [Two payload sizes](#two-payload-sizes).
 
 `pl` is the payload: `pl[n]` is payload byte `n`, i.e. absolute frame offset `n + 6`. Ranges
 `pl[a..b]` are inclusive of both ends: `pl[a]` through `pl[b]`, length `b - a + 1`.
 
 ## Two payload sizes
 
-| Variant | Devices |
+### Which one is sent: the lens's message 0x08, then the body's message 0x0A
+
+The length is not a fixed property of the lens. It is settled in two steps during init, and then held
+for the whole session:
+
+1. **The lens declares a length in its [message 0x08](msg_0x08.md) reply, `pl[13]`.**
+   `(pl[13] & 0xFE) == 0x80` → 105 bytes; any other value → 117 bytes.
+2. **The body's [message 0x0A](msg_0x0A.md) request can shorten it.** `pl[0..1] = ff 7f` → 105
+   bytes, whatever step 1 gave. `ff ff` → keep the step-1 value. The body can only shorten, never
+   lengthen.
+
+So a lens sends 117 bytes only if its message 0x08 declares the long form **and** the body does not
+send `ff 7f`.
+
+| Device | msg 0x08 `pl[13]` | declares | body's 0x0A `pl[0..1]` | sent |
+| --- | --- | --- | --- | --- |
+| Sony SELP1650 | `8c` | 117 | `ff 7f` (A6000) | **105** |
+| Voigtländer 15 mm | `e1` | 117 | `ff 7f` (NEX-7) | **105** |
+| Yongnuo YN35 / 50 DA | `81` | 105 | — | **105** |
+| Yongnuo 50 DF | `e1` | 117 | depends on body | **117**, or 105 on an `ff 7f` body |
+| Viltrox EF adapters | `20` | 117 | `ff 7f` (A6000) | **105** |
+
+Every capture agrees with the rule, and none contradicts it. The two bodies whose 0x0A request is
+known both send `ff 7f`, so on them every device ends up at 105 whatever it declared. That is why the
+117-byte form was so rarely seen, and why Entropy512's observation — "a given lens will ONLY report
+one of 0x75 or 0x69, never the other" — held: on one body, it will.
+
+| Aspect | Confidence |
 | --- | --- |
-| 96 B payload / 105 B frame | Sony SELP1650, SEL55210, SEL2870, SEL5518Z; Voigtländer 15 mm; Zeiss Loxia 21 mm; Viltrox EF adapters; TECHART LM-EA9; Yongnuo YN35 f/1.8S DA |
-| 108 B payload / 117 B frame | Techart EOS-NEX III in Fn mode; Yongnuo 50F1.8S DF |
+| The rule, as Yongnuo implements it (three models, two separate code bases) | **CERTAIN** |
+| It is protocol behaviour that Sony lenses follow too | **PROBABLE** — consistent with every native capture, but no body sending `ff ff` has been captured, so a Sony lens has never been seen switching to 117 |
+
+117-byte form on the bus: seen only from the Techart EOS-NEX III in Fn mode (body not recorded). The
+Yongnuo 50 F1.8S DF is known to use it from its firmware, not from a capture: it declares the long
+form, so it sends 117 on any body that does not send `ff 7f`.
 
 The two share a layout: **`pl[0..82]` is identical**, and the long form appends 12 bytes. Slots C
 and D are the head of one 25-byte record — the long form carries all 25 at `pl[83..107]`, the short

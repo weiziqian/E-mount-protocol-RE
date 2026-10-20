@@ -17,6 +17,7 @@ identical for every lens; the lens reply is **201 bytes**.
 | --- | --- | --- |
 | `pl[0..1]` | u16 — equals the lens's focus position (`00 13` LM-EA9, `bd 13` SELP1650) | PROBABLE |
 | `pl[6..7]` | u16 = 5632 on the LM-EA9 — **the focus limit it advertises**, which its own clamp disagreed with in earlier versions | PROBABLE |
+| **`pl[13]`** | **Declares the [message 0x05](msg_0x05.md) length.** `(pl[13] & 0xFE) == 0x80` → 105 bytes, anything else → 117 bytes, before the body's [message 0x0A](msg_0x0A.md) can shorten it. [Below](#pl13-declares-the-message-0x05-length) | **CERTAIN** in Yongnuo firmware; **PROBABLE** as protocol |
 | The 16 structured runs below | Native-lens boilerplate | **CERTAIN that they are lens-independent** |
 | Everything else | UNKNOWN | |
 
@@ -47,15 +48,20 @@ pl[0x9F..0xA0] 0c 0c           pl[0xB0..0xB2] 07 07 ff
 
 These are **not** per-lens optical tables. All 14 runs with recorded native values are byte for byte
 identical between the Sony SELP1650 (a 16–50 mm f/3.5–5.6 power zoom) and the Yongnuo YN35 (a 35 mm
-f/1.8 prime). And the Yongnuo 50 mm full-frame lens's message 0x08 is **byte-identical to the 35 mm
-APS-C lens's across all 201 payload bytes — zero differences.**
+f/1.8 prime). And the Yongnuo 50 mm full-frame lens's stored message 0x08 is **byte-identical to the
+35 mm APS-C lens's across all 201 payload bytes — zero differences.** At runtime each model then
+patches a few bytes, and only two of them differ between models: `pl[13]`, which declares the
+message 0x05 length ([below](#pl13-declares-the-message-0x05-length)), and `pl[17]` (`0x35` on the
+YN35, `0x50` on both 50 mm lenses, meaning UNKNOWN).
 
-Two lenses of different focal length, aperture range and image circle sharing every byte means
-message 0x08 carries **no per-lens optical data at all**. It is fixed native-lens boilerplate.
+Two lenses of different focal length, aperture range and image circle sharing all but two bytes,
+neither of them optical, means message 0x08 carries **no per-lens optical data at all**. It is fixed
+native-lens boilerplate.
 
 ## One vendor, one descriptor across the lineup
 
-Yongnuo sends a byte-identical 201-byte message 0x08 across three distinct lens models:
+Yongnuo sends one 201-byte message 0x08 across three distinct lens models, identical apart from
+`pl[13]` and `pl[17]`:
 
 | Model | Format |
 | --- | --- |
@@ -90,6 +96,39 @@ The "prime vs zoom" split rules out reading these bytes as vendor-varying: at `p
 `0x2E`, `0x33`, `0x35`, `0x3D`, `0x3E`, `0x52`, `0x53`, `0xB2` and others, two *unrelated vendors'*
 primes agree and only the zoom differs. Confidence: this is **one zoom against two primes** — a
 hypothesis that fits, not a proven axis. A second zoom would test it cheaply.
+
+## `pl[13]` declares the message 0x05 length
+
+`pl[13]` of the lens's reply tells the body which form of [message 0x05](msg_0x05.md) the lens
+wants to send:
+
+| `pl[13] & 0xFE` | Declared message 0x05 length |
+| --- | --- |
+| `0x80` (i.e. `pl[13]` is `0x80` or `0x81`) | **105 bytes** |
+| anything else | **117 bytes** |
+
+It is only a starting point. The body's [message 0x0A](msg_0x0A.md) request, two exchanges later,
+can force 105 bytes whatever this byte says (`pl[0..1] = ff 7f`), and cannot force 117. So
+`pl[13]` is a **ceiling**: 117 bytes are sent only if this byte asks for them and the body allows it.
+
+| Device | `pl[13]` | Declares | Actually sent |
+| --- | --- | --- | --- |
+| Sony SELP1650 | `0x8c` | 117 | 105 — the A6000 sends `ff 7f` |
+| Voigtländer 15 mm | `0xe1` | 117 | 105 — the NEX-7 sends `ff 7f` |
+| Yongnuo YN35 / 50 DA | `0x81` | 105 | 105 |
+| Yongnuo 50 DF | `0xe1` | 117 | 117 unless the body sends `ff 7f` |
+| Viltrox EF adapters | `0x20` | 117 | 105 — the A6000 sends `ff 7f` |
+
+This byte is one of the nine "all three differ" bytes in the table above (Voigtländer `e1`, YN35
+`81`, SELP1650 `8c`): not optical data, but a per-device choice of status format.
+
+Only the rule `(pl[13] & 0xFE) == 0x80` is known. What the other bits mean — `0x8c` and `0xe1`
+share bit 7 but both read as "long" — is UNKNOWN.
+
+| Aspect | Confidence |
+| --- | --- |
+| Yongnuo firmware applies exactly this rule (three models, two separate code bases) | **CERTAIN** |
+| It is protocol behaviour that Sony lenses follow too | **PROBABLE** — every capture agrees with it and none contradicts it; but both bodies captured send `ff 7f`, which overrides the byte, so its effect has never been seen on the bus |
 
 ## Tested on hardware — negative result
 
