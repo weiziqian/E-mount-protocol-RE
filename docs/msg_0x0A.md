@@ -71,18 +71,31 @@ lens captured on them does, including two whose message 0x08 declares the long f
 
 ## `pl[8]` selects the length of message 0x06
 
-In the same handler, Yongnuo sets the [message 0x06](msg_0x06.md) frame length from `pl[8]`:
+In the same handler, Yongnuo sets the base length of [message 0x06](msg_0x06.md) from `pl[8]`, for
+the rest of the session:
 
-| Request `pl[8]` | Message 0x06 frame length |
+| Request `pl[8]` | Message 0x06 base frame length | Payload before the tail |
+| --- | --- | --- |
+| `7f` | **93** | `pl[0..83]`, 84 bytes |
+| anything else | **48** | `pl[0..38]`, 39 bytes |
+
+"Base" because message 0x06 also carries a per-frame tail (events, query answers) that adds to
+either length; the tail simply starts later in the 93-byte form. What the two forms contain is in
+[message 0x06 — the 93-byte form](msg_0x06.md#the-93-byte-form).
+
+Unlike the [message 0x05](msg_0x05.md) length, this one is chosen **by the body alone**: the lens
+declares nothing for it, and the body can select the longer form, not only the shorter.
+
+**Never observed.** Every body request recorded carries `3f`: about twenty 0x0A requests, checksums
+verified, from the A6000 (five lenses and adapters) and the NEX-7 (seven captures, five devices).
+The end-of-session `00 00` request carries `00`. Every message 0x06 ever captured is 48 bytes long
+before its tail. No capture of a newer body's 0x0A request exists.
+
+| Aspect | Confidence |
 | --- | --- |
-| `7f` | **93** |
-| anything else | **48** |
-
-Every body request recorded carries `3f`, and every message 0x06 ever captured is 48 bytes. No
-93-byte message 0x06 has been observed, so its layout is UNKNOWN.
-
-Confidence: CERTAIN that Yongnuo does this; PROBABLE that the value it sets is the 0x06 frame length
-(it is read by the 0x06 sender); POSSIBLE as protocol behaviour.
+| Yongnuo selects 93 on `pl[8] = 7f`, 48 otherwise (three models, two separate code bases) | **CERTAIN** |
+| The value it sets is the 0x06 base length | **CERTAIN** — the 0x06 sender extends the payload by exactly that amount |
+| It is protocol behaviour that Sony lenses follow too | **POSSIBLE** — no body has been seen sending `7f`, so nothing on the wire bears on it either way |
 
 Note the shape: `ff 7f` vs `ff ff` in `pl[0..1]`, and `3f` vs `7f` in `pl[8]` — in both places the
 "extended" value is the observed one with **one more bit set**. That reads like a bitmap of optional

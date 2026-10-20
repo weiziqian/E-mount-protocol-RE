@@ -7,10 +7,15 @@ focus-drive status and event channel. Frame 2 of the four-frame 60 Hz loop.
 
 **Class:** normal (`0x01`).
 
-**Payload:** 39 bytes normally, but **the message is variable-length** — a 43-byte core plus an
-optional 2- or 4-byte event appendix, giving a 48-, 50- or 52-byte frame. Yongnuo additionally has
-an 88-byte-core / 93-byte mode. Only the 48-byte form has ever been observed on the wire, because
-no observation contains an actual focus drive.
+**Payload:** 39 bytes normally, but **the message is variable-length** in two independent ways:
+
+- **The base length, 48 or 93 bytes, is set once per session by the body**, through `pl[8]` of its
+  [message 0x0A](msg_0x0A.md) request: `7f` selects 93, anything else 48. See
+  [The 93-byte form](#the-93-byte-form).
+- **A per-frame tail** — an event appendix of 2 or 4 bytes, and query answers of 3 bytes each —
+  is added to that base, giving 50 or 52 bytes and longer.
+
+Only the 48-byte base has ever been observed on the wire: every body request recorded selects it.
 
 `pl` is the payload: `pl[n]` is payload byte `n`, i.e. absolute frame offset `n + 6`. Ranges
 `pl[a..b]` are inclusive of both ends: `pl[a]` through `pl[b]`, length `b - a + 1`.
@@ -35,7 +40,7 @@ TECHART LM-EA9  00 00 00 10 00 30 10 30 10 00 16 00 00 20 00 00 00 00 00 00 00 1
 | **`pl[25]`** | **Focus-drive status.** On the LM-EA9, stepped by the command state machines: `0x10` command accepted → `0x20` first stage done → `0x30` both stages done → `0x00` cleared when the machine goes idle. Zero in every idle observation, which is consistent — none contains a focus drive. | **CERTAIN** on the LM-EA9; meaning on other devices UNKNOWN |
 | **`pl[26..27]`** | **u16 LE absolute focus position / subject distance.** Optional — see below. | **CERTAIN** |
 | `pl[32..38]` | **A 7-sample velocity trace.** Yongnuo keeps a 9-deep history of the position variable, pushed one per frame, and writes its **first differences** into these 7 bytes, newest last. Varies frame to frame on the SELP1650 (`66 7f 7f 7f 7f 7f 7b` → zeros); zero on all adapters. | **CERTAIN** on Yongnuo; PROBABLE that Sony's identical-shaped field is the same thing |
-| **`pl[39..40]`** | **Event appendix — present only in the 50-byte form.** `pl[39]` = event code, `pl[40]` = parameter. See below. | Transport **CERTAIN**; code semantics **UNKNOWN** — the vendors disagree on `0x1f` |
+| **`pl[39..40]`** | **Event appendix — present only in the 50-byte form.** `pl[39]` = event code, `pl[40]` = parameter. See below. In the 93-byte form this is `pl[84..85]`, and `pl[39..83]` is the [reserved block](#the-93-byte-form). | Transport **CERTAIN**; code semantics **UNKNOWN** — the vendors disagree on `0x1f` |
 
 ---
 
@@ -56,12 +61,59 @@ F0 | len_lo len_hi | cls seq id | payload[0..38] | <appendix> | ck_lo ck_hi | 55
 | none | **48** | Both vendors; every frame observed on the wire |
 | 2 bytes | **50** | TECHART LM-EA9 during a focus drive; Yongnuo for most event codes |
 | 4 bytes | 52 | Yongnuo only, event code `0x3C` |
-| (extended 88-byte core) | 93 | Yongnuo only, one internal mode |
+| none, 93-byte base | 93 (95 / 97 with an appendix) | Yongnuo, when the body's message 0x0A `pl[8]` is `7f`; never observed on the wire |
+
+All offsets in this table and the next paragraph are for the 48-byte base. In the 93-byte base the
+tail starts 45 bytes later — see [The 93-byte form](#the-93-byte-form).
 
 **The appendix always lands at frame offsets `0x2D`/`0x2E` = `pl[39]`/`pl[40]`, in both
 implementations, and the two arrive there by different routes** — which is what makes this a real
 protocol feature rather than one vendor's quirk. Yongnuo computes the offset (core length 43, plus
 2, transmitted as core + appendix, framing adding 5 → 48 / 50 / 52); the LM-EA9 hardcodes it.
+
+The appendix is not the only thing in the tail. **Query answers** — 3 bytes each, `0x22 lo hi` or
+`0x2E lo hi`, answering the queries the body sends in [message 0x04](msg_0x04.md) — ride there too
+and lengthen the frame by 3 per answer. See
+[autofocus §4.2](autofocus.md#42-the-tail-of-0x06-events-and-query-answers).
+
+### The 93-byte form
+
+The base length is chosen by the body, once per session, in its [message 0x0A](msg_0x0A.md)
+request:
+
+| Body's message 0x0A `pl[8]` | Base frame | Payload before the tail | Tail starts at |
+| --- | --- | --- | --- |
+| anything but `7f` (every body observed: `3f`) | **48** | `pl[0..38]` | `pl[39]`, frame `0x2D` |
+| `7f` | **93** | `pl[0..83]` | `pl[84]`, frame `0x5A` |
+
+The two forms, as Yongnuo builds them:
+
+```
+48:  F0 len cls seq 06 | pl[0..38] |                      | tail | ck ck 55
+93:  F0 len cls seq 06 | pl[0..38] | pl[39..83] = 45 × 00 | tail | ck ck 55
+```
+
+- **`pl[0..38]` is identical in both.** The same builder fills it either way — travel limits, both
+  focus positions, the status byte, the velocity trace. Every field in the [field map](#field-map)
+  keeps its offset.
+- **`pl[39..83]` is 45 bytes of zeros.** Yongnuo writes nothing into it; the buffer is cleared
+  before every frame and nothing is stored past `pl[38]`.
+- **The tail moves** from `pl[39]` to `pl[84]`. Its content — the event appendix and any query
+  answers — is unchanged, so a 93-byte frame with an event is 95 or 97 bytes.
+
+So in Yongnuo's implementation the 93-byte form is the 48-byte form with a 45-byte reserved block
+inserted before the tail. It carries no extra information.
+
+That says what Yongnuo sends, not what the block is for. A lens that implements the extension fully
+may put data there; the block is 45 bytes, and the body asks for it explicitly. Its contents on any
+other device are UNKNOWN.
+
+| Aspect | Confidence |
+| --- | --- |
+| Body's 0x0A `pl[8] = 7f` selects the 93-byte base on Yongnuo (three models, two separate code bases) | **CERTAIN** |
+| On Yongnuo: `pl[0..38]` identical in both forms, `pl[39..83]` all zero, tail moved to `pl[84]` | **CERTAIN** |
+| A Sony lens does the same | **POSSIBLE** — no body has been seen sending `7f`, so no 93-byte frame has ever been captured |
+| What `pl[39..83]` is meant to carry | **UNKNOWN** |
 
 ### Appendix format: `[code][parameter]`
 
@@ -239,3 +291,5 @@ distance slider — untested.
 - Whether the body actually consumes the `pl[2..3]` forecast as feed-forward.
 - Whether the forecast's remaining-distance bound tracks live distance or the move's initial total.
 - What `pl[26..27]` is used for, given autofocus works without it.
+- Which bodies send message 0x0A `pl[8] = 7f`, and what `pl[39..83]` of the 93-byte form carries on
+  a lens that fills it.
