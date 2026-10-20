@@ -1,42 +1,37 @@
-# Message 0x0C — small init exchange
+# Message 0x0C — baud-rate negotiation
 
-**Summary.** A 1-byte init-class request/response with UNKNOWN semantics. The third exchange of the
-handshake on every body observed, immediately before the baud-rate negotiation.
-
-The reply value matters: a TECHART LM-EA9 answering `01` instead of `00` causes a Sony a9 II to
-**abandon the handshake at this message** and issue no further request. The body treats the wrong
-value as a fatal answer rather than ignoring it, and the failure is indistinguishable from a lens
-that never replied at all. CERTAIN on that body.
+**Summary.** The lens's reply sets the bus speed for the rest of the session: `01` = switch to
+1.5 Mbaud, `00` = stay at 750 kbaud. The last exchange at 750 kbaud. **CERTAIN.**
 
 **Direction:** both. Body request 1 byte; lens reply 1 byte.
 
 **Class:** init (`0x02`).
 
-`pl` is the payload: `pl[n]` is payload byte `n`, i.e. absolute frame offset `n + 6`. Ranges
-`pl[a..b]` are inclusive of both ends: `pl[a]` through `pl[b]`, length `b - a + 1`.
+`pl` is the payload: `pl[n]` is payload byte `n`, i.e. absolute frame offset `n + 6`.
 
 ## Observed payloads
 
-| Direction | Device | Payload |
-| --- | --- | --- |
-| B→L | Sony A6000, every lens | `02` |
-| L→B | Sony SELP1650, SEL55210, Viltrox EF adapter | `01` |
-| L→B | TECHART LM-EA9 | `00` |
+| Direction | Device | Payload | Speed afterwards |
+| --- | --- | --- | --- |
+| B→L | Sony A6000, every lens | `02` | — |
+| L→B | Sony SELP1650, SEL55210, Viltrox EF adapter | `01` | 1.5 Mbaud |
+| L→B | Yongnuo (firmware) | `01` | 1.5 Mbaud |
+| L→B | TECHART LM-EA9 | `00` | 750 kbaud |
 
-Every device measured replies with the same single byte, so this exchange carries no per-device
-information on the wire.
+## Reply `pl[0]`
 
-## Position in the handshake
+| Value | Meaning |
+| --- | --- |
+| `01` | Switch to 1.5 Mbaud from the next exchange (0x0B) on |
+| `00` | Stay at 750 kbaud |
 
-The gap **after** this exchange (~143 ms → ~164 ms, before 0x0B) is where the baud-rate negotiation
-sits. So 0x0C is the last exchange at the initial 750 kbaud.
+The lens sends the reply at 750 kbaud, waits for it to finish transmitting, then reconfigures its
+UART. The body switches on `01` regardless of whether the lens does, so a lens that answers `01`
+must actually switch — otherwise the body stops talking after this message (seen on an a9 II).
 
-## Manufacturer notes
-
-- **Sony**, **Viltrox** — all reply `01`.
-- **TECHART**, **Yongnuo** — both implement the message.
+The request byte (`02`) is ignored by Yongnuo; its meaning is UNKNOWN.
 
 ## Open questions
 
-- The meaning of the request byte `02` and the reply byte `01`.
-- Whether the reply is checked at all, given every device sends the same value.
+- What the request byte `02` encodes.
+- Whether other reply values select other speeds.

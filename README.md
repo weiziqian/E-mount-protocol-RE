@@ -58,7 +58,7 @@ Ten contacts. Pins numbered left to right looking at a lens from the rear:
 ## UART parameters
 
 - **8N1, LSB-first**, no parity. CERTAIN.
-- Starts at **750 kbaud**, negotiates up to **1.5 Mbaud** during init. CERTAIN.
+- Starts at **750 kbaud**, negotiates up to **1.5 Mbaud** in [message 0x0C](docs/msg_0x0C.md). CERTAIN.
 - Data flows **only while the matching CS line is high**, and exactly **one frame per CS-high
   period**. CERTAIN — framing therefore needs no heuristic, the CS line delimits it.
 - During the speed change **both CS lines go high with no data for ~5 ms**. This is the only time
@@ -120,8 +120,7 @@ B->L 0x10  ( 1 B)  ->  L->B 0x10  ( 1 B)
 B->L 0x0A  (16 B)  ->  L->B 0x0A  (16 B)
 ```
 
-The gap between the `0x0C` and `0x0B` exchanges (~143 ms → ~164 ms) is where the baud-rate
-negotiation sits. The `0x10` reply is separated from its request by a long delay
+The gap between the `0x0C` and `0x0B` exchanges (~143 ms → ~164 ms) is the baud-rate switch. The `0x10` reply is separated from its request by a long delay
 (169 ms → 1504 ms on the SELP1650) — the lens is presumably initialising hardware. PROBABLE.
 
 ### Later bodies request more, in the same order
@@ -197,7 +196,7 @@ PROBABLE, and worth remembering before assuming a fixed layout.
 | **[0x09](docs/msg_0x09.md)** | both | init | small init exchange |
 | **[0x0A](docs/msg_0x0A.md)** | both | init | init echo |
 | **[0x0B](docs/msg_0x0B.md)** | both | init | small init exchange |
-| **[0x0C](docs/msg_0x0C.md)** | both | init | small init exchange |
+| **[0x0C](docs/msg_0x0C.md)** | both | init | baud-rate negotiation |
 | **[0x0D](docs/msg_0x0D.md)** | both | init | small init exchange |
 | **[0x10](docs/msg_0x10.md)** | both | init | small init exchange, long reply delay |
 | **[0x16](docs/msg_0x16.md)** | both | init | shutdown request |
