@@ -17,7 +17,7 @@ identical for every lens; the lens reply is **201 bytes**.
 | --- | --- | --- |
 | `pl[0..1]` | u16 — equals the lens's focus position (`00 13` LM-EA9, `bd 13` SELP1650) | PROBABLE |
 | `pl[6..7]` | u16 = 5632 on the LM-EA9 — **the focus limit it advertises**, which its own clamp disagreed with in earlier versions | PROBABLE |
-| **`pl[13]`** | **Declares the [message 0x05](msg_0x05.md) length.** `(pl[13] & 0xFE) == 0x80` → 105 bytes, anything else → 117 bytes, before the body's [message 0x0A](msg_0x0A.md) can shorten it. [Below](#pl13-declares-the-message-0x05-length) | **CERTAIN** in Yongnuo firmware; **PROBABLE** as protocol |
+| **`pl[13]`** | **Declares the [message 0x05](msg_0x05.md) length.** `(pl[13] & 0xFE) == 0x80` → 105 bytes, anything else → 117 bytes, before the body's [message 0x0A](msg_0x0A.md) can shorten it. **Also tracks the image format**: bit 5 (`0x20`) is set on every full-frame device and clear on every APS-C one, and clearing it confined a Sony a9 II's AF area to the APS-C region. [Below](#pl13-declares-the-message-0x05-length) | Length rule **CERTAIN** in Yongnuo firmware, **PROBABLE** as protocol; format observation **CERTAIN**, its meaning **POSSIBLE** |
 | The 16 structured runs below | Native-lens boilerplate | **CERTAIN that they are lens-independent** |
 | Everything else | UNKNOWN | |
 
@@ -111,6 +111,11 @@ It is only a starting point. The body's [message 0x0A](msg_0x0A.md) request, two
 can force 105 bytes whatever this byte says (`pl[0..1] = ff 7f`), and cannot force 117. So
 `pl[13]` is a **ceiling**: 117 bytes are sent only if this byte asks for them and the body allows it.
 
+**The body picks that request from this byte.** On a Sony a9 II, `0x81` drew `ff 7f 00` (105
+bytes), and `0xe1` drew `ff ff 03` — and the body then **required** the 117-byte form: a lens that
+kept sending 105 lost the session and was power-cycled. Details in
+[message 0x0A](msg_0x0A.md#the-request-depends-on-the-lenss-message-0x08).
+
 | Device | `pl[13]` | Declares | Actually sent |
 | --- | --- | --- | --- |
 | Sony SELP1650 | `0x8c` | 117 | 105 — the A6000 sends `ff 7f` |
@@ -122,13 +127,36 @@ can force 105 bytes whatever this byte says (`pl[0..1] = ff 7f`), and cannot for
 This byte is one of the nine "all three differ" bytes in the table above (Voigtländer `e1`, YN35
 `81`, SELP1650 `8c`): not optical data, but a per-device choice of status format.
 
-Only the rule `(pl[13] & 0xFE) == 0x80` is known. What the other bits mean — `0x8c` and `0xe1`
-share bit 7 but both read as "long" — is UNKNOWN.
+### It also tracks the image format
+
+| Device | Format | `pl[13]` |
+| --- | --- | --- |
+| Yongnuo 50 mm DF | full frame | `0xe1` |
+| Voigtländer 15 mm | full frame | `0xe1` |
+| Viltrox EF adapter | full-frame mount | `0x20` |
+| TECHART LM-EA9 | full-frame mount (Leica M) | `0x20` |
+| Yongnuo 35 mm DA, 50 mm DA | APS-C | `0x81` |
+| Sony SELP1650 | APS-C | `0x8c` |
+
+Bit 5 (`0x20`) is set on every full-frame device and clear on every APS-C one.
+
+**Observed on a Sony a9 II (full-frame body):** a device sending `0x20` here could place the AF
+point anywhere in the frame. The same device sending `0x81`, with nothing else changed, could
+only place it inside the APS-C region. Restoring `0x20` restored the full range.
+
+So the body reads more from this byte than the status length. That bit 5 means "full-frame image
+circle" fits both the table and the a9 II result, but is not established. What bits 0, 2, 3, 6
+and 7 mean is UNKNOWN.
 
 | Aspect | Confidence |
 | --- | --- |
 | Yongnuo firmware applies exactly this rule (three models, two separate code bases) | **CERTAIN** |
-| It is protocol behaviour that Sony lenses follow too | **PROBABLE** — every capture agrees with it and none contradicts it; but both bodies captured send `ff 7f`, which overrides the byte, so its effect has never been seen on the bus |
+| It is protocol behaviour that Sony lenses follow too | **PROBABLE** — every capture agrees with it and none contradicts it |
+| A Sony a9 II answers `0xe1` with a 0x0A of `ff ff 03` and then requires 117 bytes | **CERTAIN** on one a9 II |
+| `0x20` declares 117 by the `& 0xFE` rule, yet a lens sending it and 105 bytes works on an a9 II | **CERTAIN** — so the body reads more of this byte than `& 0xFE` |
+| Bit 5 set on full-frame devices, clear on APS-C ones (six devices) | **CERTAIN** as an observation |
+| Clearing bit 5 confines a Sony a9 II's AF area to the APS-C region | **CERTAIN** for `0x20` → `0x81` on one a9 II; which bit is responsible is not isolated |
+| Bit 5 means "full-frame image circle" | **POSSIBLE** |
 
 ## Tested on hardware — negative result
 

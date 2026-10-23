@@ -3,7 +3,8 @@
 **Summary.** Lens identification. The second exchange of the init phase, immediately after the
 capability bitmap.
 
-**Direction:** both. The body request is 1 byte (`00`); the lens reply is 34 bytes.
+**Direction:** both. The body request is 1 byte (`00`, on the A6000 and the a9 II alike); the lens
+reply is 34 bytes.
 
 **Class:** init (`0x02`).
 

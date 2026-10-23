@@ -2,7 +2,8 @@
 
 **Summary.** The human-readable lens name, as ASCII.
 
-**Direction:** L→B.
+**Direction:** both. The body request is 1 byte, `00` on a Sony a9 II; the lens reply carries the
+name.
 
 **Class:** init (`0x02`).
 

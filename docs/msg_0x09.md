@@ -15,6 +15,7 @@ Documented because the values discriminate between devices.
 | Direction | Device | Payload |
 | --- | --- | --- |
 | B→L | Sony A6000, every lens | `00 00 00 00` |
+| B→L | Sony a9 II | `00 00 00 00` |
 | L→B | Sony SELP1650 | `10 00 00 00 00 00 00 00 00 fd ff` |
 | L→B | Sony SEL55210 | all zero |
 | L→B | Viltrox EF adapter | `01 01 00 …` |

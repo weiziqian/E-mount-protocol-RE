@@ -15,6 +15,7 @@ after the baud-rate negotiation.
 | Direction | Device | Payload |
 | --- | --- | --- |
 | B→L | Sony A6000, every lens | `60 00` |
+| B→L | Sony a9 II | `60 00` |
 | L→B | Sony SELP1650 | `60 20` |
 | L→B | Sony SEL55210 | **`60 00`** |
 | L→B | Viltrox EF adapter | `60 00` |

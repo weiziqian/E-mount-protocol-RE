@@ -14,6 +14,7 @@
 | Direction | Device | Payload |
 | --- | --- | --- |
 | B→L | Sony A6000, every lens | `00` |
+| B→L | Sony a9 II | `00` |
 | L→B | Sony SELP1650, SEL55210, Viltrox EF adapter, TECHART LM-EA9 | `01` |
 
 Every device measured replies `01` to a request of `00`. Yongnuo's reply is identical across its

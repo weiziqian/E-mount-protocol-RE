@@ -3,7 +3,8 @@
 **Summary.** A 16-byte init-class exchange in which **the lens echoes the body's request exactly**.
 The last exchange of the init handshake. The request is more than an echo pattern: its first two
 bytes can **shorten [message 0x05](msg_0x05.md) to its 105-byte form**, and `pl[8]` selects the
-length of [message 0x06](msg_0x06.md).
+length of [message 0x06](msg_0x06.md). **The body chooses the request from the lens's own
+[message 0x08](msg_0x08.md) `pl[13]`**, so it is not a fixed value.
 
 **Direction:** both. Body request 16 bytes; lens reply 16 bytes.
 
@@ -19,7 +20,8 @@ length of [message 0x06](msg_0x06.md).
 | B→L | Sony A6000, every lens | end of init | `ff 7f 00 00 00 00 00 00 3f 00 …` |
 | B→L | Sony NEX-7, every lens | end of init | `ff 7f 00 00 00 00 00 00 3f 00 …` |
 | B→L | Sony NEX-7 | **end of session**, immediately before [message 0x16](msg_0x16.md) | `00 00 00 00 00 00 00 00 00 00 …` |
-| B→L | Sony a9 II | end of init | not recorded — **UNKNOWN** |
+| B→L | Sony a9 II, lens sends 0x08 `pl[13] = 0x81` | end of init | `ff 7f 00 00 00 00 00 00 3f 00 …` |
+| B→L | Sony a9 II, lens sends 0x08 `pl[13] = 0xe1` | end of init | **`ff ff 03 00 00 00 00 00 3f 00 …`** |
 | L→B | Sony SELP1650, SEL55210, SEL2870, SEL5518Z; Voigtländer 15 mm; Zeiss Loxia 21 mm; Viltrox EF adapter | both | **echoes the request exactly** |
 | L→B | TECHART LM-EA9 | end of init | `ff 7f … 3f …` — the same shape |
 
@@ -59,15 +61,37 @@ form**:
 The request can only **shorten**. No value of `pl[0..1]` turns a 105-byte lens into a 117-byte one;
 the long form needs both the lens's message 0x08 to declare it **and** the body not to send `ff 7f`.
 
-Both bodies whose request is known send `ff 7f`, so on them every lens should send 105 — and every
-lens captured on them does, including two whose message 0x08 declares the long form (SELP1650
-`pl[13] = 0x8c` on the A6000, Voigtländer 15 mm `pl[13] = 0xe1` on the NEX-7).
+Every request recorded from the A6000 and the NEX-7 is `ff 7f`, and every lens captured on them
+sends 105 — including two whose message 0x08 declares the long form (SELP1650 `pl[13] = 0x8c` on the
+A6000, Voigtländer 15 mm `pl[13] = 0xe1` on the NEX-7). The a9 II sends `ff ff` when the lens
+declares `0xe1` — see the next section.
 
 | Aspect | Confidence |
 | --- | --- |
 | Yongnuo firmware implements exactly this rule (three models, two separate code bases) | **CERTAIN** |
-| It is protocol behaviour, i.e. Sony lenses follow it too | **PROBABLE** — every native capture agrees with it and none contradicts it; but no capture has a body that sends `ff ff`, so the rule has never been seen *making* a difference on the bus |
-| `ff ff` means "the body accepts the 117-byte form" | **POSSIBLE** — inferred from the rule; no body has been seen sending it |
+| It is protocol behaviour, i.e. Sony lenses follow it too | **PROBABLE** — every native capture agrees with it and none contradicts it |
+| `ff ff` means the body expects the 117-byte form the lens declared | **CERTAIN** on the a9 II for `pl[13] = 0xe1` — see below |
+
+## The request depends on the lens's message 0x08
+
+The body builds this request from what the lens declared in [message 0x08](msg_0x08.md) `pl[13]`,
+two exchanges earlier. Observed on one Sony a9 II, with nothing else in the lens's replies changed:
+
+| Lens 0x08 `pl[13]` | a9 II 0x0A request `pl[0..2]` | Message 0x05 the body then expects |
+| --- | --- | --- |
+| `0x81` (declares 105) | `ff 7f 00` | 105 bytes |
+| `0xe1` (declares 117) | `ff ff 03` | **117 bytes** |
+
+With `0xe1`, a lens that sent the 105-byte form anyway completed the handshake and then lost the
+body: the a9 II never sent [message 0x16](msg_0x16.md), cut the lens's power within seconds and
+restarted the session, repeatedly. The same lens sending 117 bytes worked normally. So `ff ff` is
+not merely permission — a body that sends it **requires** the long form. CERTAIN on this body.
+
+What `pl[2] = 03` means is UNKNOWN; every other request recorded has `00` there.
+
+What the a9 II requests for other `pl[13]` values is not recorded. A lens sending `0x20` and the
+105-byte form works on it, so for `0x20` it does not demand the long form, although `0x20` also
+declares 117 by the rule above. The body therefore reads more of `pl[13]` than `& 0xFE`.
 
 ## `pl[8]` selects the length of message 0x06
 
@@ -87,9 +111,9 @@ Unlike the [message 0x05](msg_0x05.md) length, this one is chosen **by the body 
 declares nothing for it, and the body can select the longer form, not only the shorter.
 
 **Never observed.** Every body request recorded carries `3f`: about twenty 0x0A requests, checksums
-verified, from the A6000 (five lenses and adapters) and the NEX-7 (seven captures, five devices).
-The end-of-session `00 00` request carries `00`. Every message 0x06 ever captured is 48 bytes long
-before its tail. No capture of a newer body's 0x0A request exists.
+verified, from the A6000 (five lenses and adapters) and the NEX-7 (seven captures, five devices),
+and three from the Sony a9 II, including both forms above. The end-of-session `00 00` request carries `00`. Every message 0x06
+ever captured is 48 bytes long before its tail.
 
 | Aspect | Confidence |
 | --- | --- |
@@ -118,7 +142,9 @@ Yongnuo also has a third mode for `pl[0..1] = 40 00`. No body has been seen send
 
 ## Open questions
 
-- What the a9 II, or any body newer than the A6000, sends in `pl[0..1]` and `pl[8]`.
-- Whether a Sony lens actually switches to 117 bytes when a body sends `ff ff`.
+- Whether any body sends `7f` in `pl[8]`.
+- What the a9 II requests for `pl[13]` values other than `0x81` and `0xe1`, and which bits of
+  `pl[13]` it decides on.
+- What `pl[2] = 03` in the a9 II's `ff ff` request means.
 - What the remaining request bytes encode.
 - Whether a device that returned altered bytes would be rejected.
