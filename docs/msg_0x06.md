@@ -33,9 +33,12 @@ TECHART LM-EA9  00 00 00 10 00 30 10 30 10 00 16 00 00 20 00 00 00 00 00 00 00 1
 | --- | --- | --- |
 | `pl[0]` | **Partly decoded.** Yongnuo writes `0x02`/`0x82`, then sets **bit 4 (`0x10`) when the position is within `0x20` counts of the lower travel limit** and **bit 3 (`0x08`) when within `0x20` of the upper**. Observed `0x81`/`0x82` on SELP1650, `0x82` on SEL55210, `0x00` on the Viltrox and the LM-EA9. | Near-limit bits **CERTAIN** on Yongnuo; bit 7 and the rest UNKNOWN. Still a native/adapter discriminator |
 | `pl[2..3]` | **Focus position, one frame AHEAD** — current position plus a motion forecast. SELP1650 reads 16384, inside its own reported range. **Scale: the lens's own encoder/step counts plus a fixed base** (Yongnuo: `16080 + steps`) — *not* message 0x05's normalised scale; it is **not** the [aperture value](aperture_value.md)'s scale, and the two are contrasted there. | **CERTAIN** |
-| `pl[4..5]` | u16 LE. `0x1000` on every prime measured (SEL5518Z, Yongnuo); other values on zooms (SEL55210 `0x11d0` @55 mm, `0x4ca1` @210 mm). | **UNKNOWN** |
+| `pl[4]` | `00` on primes (SEL5518Z, Yongnuo) and adapters; `d0` / `a1` SEL55210 @55 / @210 mm, `05` SEL2870 @70 mm, `07` SELP1650. Equal to `pl[11]` on every lens but the SELP1650 (`22`). | **UNKNOWN** |
+| `pl[5]` | `10` on primes; `11` / `4c` SEL55210 @55 / @210 mm, `4f` SEL2870, `10` SELP1650; `00` on the Viltrox. Equal to `pl[12] + 0x10` on every Sony lens — an addition, not a bit set (`3c` → `4c`). Read as u16, `pl[4..5] = pl[11..12] + 0x1000` covers both rules except the SELP1650's `pl[4]`; no carry into `pl[5]` has been observed, so the u16 reading is untested. | **UNKNOWN** |
+| `pl[6]` | `0x10` on every device, adapters included. The SELP1650 adds a 2-bit counter in bits 5–6 that steps every frame (`10 30 50 70`). | **UNKNOWN** |
 | **`pl[7..8]`** | **u16 LE lower focus travel limit** | **CERTAIN** on the LM-EA9; PROBABLE generally |
 | **`pl[9..10]`** | **u16 LE upper focus travel limit** | as above |
+| `pl[11..12]` | u16 LE. 0 on primes; on zooms it grows with focal length — SEL55210 464 @55 mm, 15521 @210 mm; SEL2870 16133 @70 mm (tele end); SELP1650 34. | **UNKNOWN**; zoom position **POSSIBLE** |
 | `pl[13..14]` | u16 LE [defocus scale](autofocus.md#26-the-defocus-unit): Move mode 6 multiplies its operand by it. That it measures position counts per defocus unit at the current aperture is inferred from Yongnuo's per-aperture table. | Use by mode 6 **CERTAIN**; what it measures **PROBABLE** |
 | `pl[20..21]` | **Focus position NOW** — the current, un-forecast position. Cheaper EF-mount adapters report nothing here; native E-mount lenses do. | **CERTAIN** |
 | `pl[23]` | Bit 6 (`0x40`) flips once per body cycle: on the frame where [message 0x03](msg_0x03.md) `pl[11]` returns to 0, or every second frame when the cycle length `pl[10]` is 1. Other bits zero. | Flip rule **PROBABLE**; meaning **UNKNOWN** |
@@ -282,7 +285,7 @@ autofocuses correctly, so the field is **not required for autofocus**.
 - The event code table. The two implementations disagree on `0x1F`, so no shared table is
   established.
 - `pl[25]`'s meaning on devices other than the LM-EA9.
-- `pl[4..5]` on zoom lenses.
+- `pl[4]`, `pl[5]`, `pl[6]` and `pl[11..12]`, and whether `pl[4..5]` is one u16.
 - Whether the body actually consumes the `pl[2..3]` forecast as feed-forward.
 - Whether the forecast's remaining-distance bound tracks live distance or the move's initial total.
 - What `pl[26..27]` is, and whether it varies with focus on an AF lens.

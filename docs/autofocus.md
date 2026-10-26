@@ -454,7 +454,7 @@ in units the body can use without knowing the lens:
 | `pl[20..21]` | u16 LE **subject distance** as a [distance code](#25-the-distance-code), computed from the current focus position every frame; `0x0700` = infinity, or not reported | Encoding **CERTAIN** |
 | `pl[22]` | Bit 7 always set by a lens that reports motion. **Bit 6 = in motion**: focus being driven, the focus ring being turned, and on some lenses the aperture moving | Bit 6 for focus **CERTAIN**; for aperture **POSSIBLE** |
 | `pl[23]` | Coarse subject distance, a signed byte ≈ −32 × dioptres (`0xFF` ≈ infinity) | **PROBABLE** |
-| `pl[54]` | Coarse focus position: counts from the infinity end ÷ 256, 0 near infinity | **POSSIBLE** |
+| `pl[54]` | Coarse focus position: message 0x06 position units from the infinity end ÷ 256, 0 near infinity | **CERTAIN** on Yongnuo; **PROBABLE** on Sony |
 | `pl[60]` | **Focus ring direction**, signed: `0x01` / `0xFF` while the ring is turned, `0x00` otherwise. Not set by body-commanded moves | **PROBABLE** |
 | `pl[62]` | A two-position switch on the lens, `0x01` or `0x03`; updated only while no focus move is running or pending. Which value is which position is **UNKNOWN** | **POSSIBLE** |
 | `pl[32..43]` | The optical rows in slots A and B are chosen by the current focus position, as well as by aperture — see [the optical rows](optical_data.md) | **PROBABLE** |
