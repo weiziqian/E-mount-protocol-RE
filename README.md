@@ -190,7 +190,7 @@ PROBABLE, and worth remembering before assuming a fixed layout.
 | **[0x03](docs/msg_0x03.md)** | B→L | normal | body status / command, per frame |
 | **[0x04](docs/msg_0x04.md)** | B→L | normal | body state and focus command, per frame |
 | **[0x05](docs/msg_0x05.md)** | L→B | normal | lens status + optical table transfer |
-| **[0x06](docs/msg_0x06.md)** | L→B | normal | focus range, subject distance, event channel |
+| **[0x06](docs/msg_0x06.md)** | L→B | normal | focus range, focus position, event channel |
 | **[0x07](docs/msg_0x07.md)** | both | init | identity and lens ID |
 | **[0x08](docs/msg_0x08.md)** | both | init | the large descriptor |
 | **[0x09](docs/msg_0x09.md)** | both | init | small init exchange |

@@ -40,7 +40,7 @@ adapter form drops is the `2F` + index tail at `pl[20..22]`, nothing else.
 | `pl[0..1]` | u16 LE. Takes body-side values (`0x399C` = 14748, `0x2EBB` = 11963, `0x1A2C` = 6700 on an A6000; `0x3D6C` = 15724, `0x31F6` = 12790 on an a9 II). **The same values appear across two different lenses**, so it is body state, not lens data. Changes every frame. | UNKNOWN |
 | `pl[3..4]`, `pl[5..6]` | **u16 LE pair, both [aperture values](aperture_value.md).** `pl[5..6]` is the aperture the body is asking for. `pl[3..4]` is `0x1000` = 4096 = f/1.0 in the first frame of a session and equal to `pl[5..6]` in every frame after it. | Both are apertures **CERTAIN**; what distinguishes the two fields **UNKNOWN** |
 | `pl[7]` | `0x94` at start of session, `0x1C` thereafter. Holds on both bodies. | UNKNOWN |
-| `pl[10]`, `pl[11]` | Small counters — `pl[11]` cycles 0…5 | POSSIBLE (frame/phase counter) |
+| `pl[10]`, `pl[11]` | **Body cycle**: `pl[10]` is the cycle length N in frames, `pl[11]` the frame within it, 0…N−1. The lens follows it in [message 0x06](msg_0x06.md) `pl[23]`. | **PROBABLE** |
 | `pl[12]` | 0 or 1 | UNKNOWN |
 | `pl[15]` | `02` or `03` | UNKNOWN |
 | `pl[20]` | `0x2F` constant on natives — an instruction tag rather than an arbitrary constant, see below | PROBABLE |

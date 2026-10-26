@@ -1,6 +1,6 @@
-# Message 0x06 — focus range, subject distance and event channel
+# Message 0x06 — focus range, focus position and event channel
 
-**Summary.** Focus travel limits, the absolute focus / subject-distance report, and the lens's
+**Summary.** Focus travel limits, the focus position (now and one frame ahead), and the lens's
 focus-drive status and event channel. Frame 2 of the four-frame 60 Hz loop.
 
 **Direction:** L→B only.
@@ -33,13 +33,15 @@ TECHART LM-EA9  00 00 00 10 00 30 10 30 10 00 16 00 00 20 00 00 00 00 00 00 00 1
 | --- | --- | --- |
 | `pl[0]` | **Partly decoded.** Yongnuo writes `0x02`/`0x82`, then sets **bit 4 (`0x10`) when the position is within `0x20` counts of the lower travel limit** and **bit 3 (`0x08`) when within `0x20` of the upper**. Observed `0x81`/`0x82` on SELP1650, `0x82` on SEL55210, `0x00` on the Viltrox and the LM-EA9. | Near-limit bits **CERTAIN** on Yongnuo; bit 7 and the rest UNKNOWN. Still a native/adapter discriminator |
 | `pl[2..3]` | **Focus position, one frame AHEAD** — current position plus a motion forecast. SELP1650 reads 16384, inside its own reported range. **Scale: the lens's own encoder/step counts plus a fixed base** (Yongnuo: `16080 + steps`) — *not* message 0x05's normalised scale; it is **not** the [aperture value](aperture_value.md)'s scale, and the two are contrasted there. | **CERTAIN** |
-| `pl[5..6]` | u16 — 4144 on the LM-EA9, the same as its lower clamp | POSSIBLE (a third copy of the lower limit) |
+| `pl[4..5]` | u16 LE. `0x1000` on every prime measured (SEL5518Z, Yongnuo); other values on zooms (SEL55210 `0x11d0` @55 mm, `0x4ca1` @210 mm). | **UNKNOWN** |
 | **`pl[7..8]`** | **u16 LE lower focus travel limit** | **CERTAIN** on the LM-EA9; PROBABLE generally |
 | **`pl[9..10]`** | **u16 LE upper focus travel limit** | as above |
+| `pl[13..14]` | u16 LE [defocus scale](autofocus.md#26-the-defocus-unit): Move mode 6 multiplies its operand by it. That it measures position counts per defocus unit at the current aperture is inferred from Yongnuo's per-aperture table. | Use by mode 6 **CERTAIN**; what it measures **PROBABLE** |
 | `pl[20..21]` | **Focus position NOW** — the current, un-forecast position. Cheaper EF-mount adapters report nothing here; native E-mount lenses do. | **CERTAIN** |
+| `pl[23]` | Bit 6 (`0x40`) flips once per body cycle: on the frame where [message 0x03](msg_0x03.md) `pl[11]` returns to 0, or every second frame when the cycle length `pl[10]` is 1. Other bits zero. | Flip rule **PROBABLE**; meaning **UNKNOWN** |
 | **`pl[25]`** | **Focus-drive status.** On the LM-EA9, stepped by the command state machines: `0x10` command accepted → `0x20` first stage done → `0x30` both stages done → `0x00` cleared when the machine goes idle. Zero in every idle observation, which is consistent — none contains a focus drive. | **CERTAIN** on the LM-EA9; meaning on other devices UNKNOWN |
-| **`pl[26..27]`** | **u16 LE absolute focus position / subject distance.** Optional — see below. | **CERTAIN** |
-| `pl[32..38]` | **A 7-sample velocity trace.** Yongnuo keeps a 9-deep history of the position variable, pushed one per frame, and writes its **first differences** into these 7 bytes, newest last. Varies frame to frame on the SELP1650 (`66 7f 7f 7f 7f 7f 7b` → zeros); zero on all adapters. | **CERTAIN** on Yongnuo; PROBABLE that Sony's identical-shaped field is the same thing |
+| `pl[26..27]` | u16 LE. Lens- and focal-length-dependent; no observation shows it changing with focus. See below. | Meaning **UNKNOWN** |
+| `pl[32..38]` | **The position trace within the previous frame.** Yongnuo latches the position at frame sync (`L0`) and samples it again at every eighth of the frame period (`L1`..`L7`); the next sync gives `L8`. `pl[32+k] = L(k+1) − L(k+2)` — **older minus newer**, one eighth of a frame each, newest last. Varies frame to frame on the SELP1650 (`66 7f 7f 7f 7f 7f 7b` → zeros); zero on all adapters. | **CERTAIN** on Yongnuo; PROBABLE that Sony's identical-shaped field is the same thing |
 | **`pl[39..40]`** | **Event appendix — present only in the 50-byte form.** `pl[39]` = event code, `pl[40]` = parameter. See below. In the 93-byte form this is `pl[84..85]`, and `pl[39..83]` is the [reserved block](#the-93-byte-form). | Transport **CERTAIN**; code semantics **UNKNOWN** — the vendors disagree on `0x1f` |
 
 ---
@@ -248,35 +250,28 @@ advertises in message 0x08.**
 
 ---
 
-## `pl[26..27]` subject distance — encoding, and it is OPTIONAL
+## `pl[26..27]` — UNKNOWN
 
-At infinity the value is ≈ `110 × sqrt(focal_mm)`, and it *increases* as the lens focuses closer —
-so it is a reciprocal-ish encoding, not millimetres.
+| Device | `pl[26..27]` | Within the capture |
+| --- | --- | --- |
+| Sony SELP1650 (A6000) | 510 | constant |
+| Sony SEL55210 @55 mm / @210 mm (A6000) | 793 / 1684 | constant |
+| Sony SEL5518Z (NEX-7) | 354 | constant |
+| Sony SEL2870 @70 mm (NEX-7) | 851 | constant |
+| Voigtländer 15 mm, Zeiss Loxia 21 mm (manual) | 0 | constant, including a 0.3 m → ∞ ring sweep |
+| Viltrox + EF 50 mm / EF-S 24 mm | 691 / 968 | constant |
+| Yongnuo 35 DA, 50 DA / 50 DF v04 | 0 / 254 | hardcoded, never computed |
 
-| Lens | Value |
-| --- | --- |
-| Sony SELP1650 | 510 |
-| Sony SEL55210 @55 mm | 793 |
-| Sony SEL55210 @210 mm | 1685 |
-
-Sony's own lenses populate it; Yongnuo's do not — all three of their models write a hardcoded **0**,
-and those lenses get full, correct autofocus.
-
-| Device | `pl[26..27]` |
-| --- | --- |
-| Sony natives | Real; varies with focus and focal length (510; 793 @55 → 1685 @210) |
-| Yongnuo (3 models, native AF, works correctly) | **constant 0** |
-
-So the field is **not required for autofocus**. What may still depend on it is MF assist and the
-distance slider — untested.
+It differs between lenses and with focal length (SEL55210). None of the Sony captures contains a
+focus move, so whether it varies with focus on an AF lens is unobserved. Yongnuo sends a constant and
+autofocuses correctly, so the field is **not required for autofocus**.
 
 ## Manufacturer notes
 
-- **Sony** — natives populate the near-limit flags in `pl[0]`, the velocity trace, and the subject
-  distance. Travel spans are wide (the SEL5518Z spans 5809 counts).
+- **Sony** — natives populate the near-limit flags in `pl[0]`, the velocity trace, and `pl[26..27]`. Travel spans are wide (the SEL5518Z spans 5809 counts).
 - **Yongnuo** — computes the forecast and the near-limit flags, drives the appendix from an event
-  queue with `0x1F` as its "no event" sentinel, and writes a hardcoded 0 for subject distance.
-- **TECHART** — the LM-EA9 sends `pl[0] = 0`, a frozen subject distance, no forecast, and a narrow
+  queue with `0x1F` as its "no event" sentinel, and writes a constant to `pl[26..27]`.
+- **TECHART** — the LM-EA9 sends `pl[0] = 0`, a constant `pl[26..27]`, no forecast, and a narrow
   1488–1584 count travel span. It stages one appendix code with parameter always 0, and treats
   `0x1F` as a real code rather than a sentinel.
 - **Viltrox** — the EF adapters report nothing in `pl[20..21]` and send `pl[0] = 0`.
@@ -287,9 +282,9 @@ distance slider — untested.
 - The event code table. The two implementations disagree on `0x1F`, so no shared table is
   established.
 - `pl[25]`'s meaning on devices other than the LM-EA9.
-- `pl[5..6]`: whether it really is a third copy of the lower travel limit.
+- `pl[4..5]` on zoom lenses.
 - Whether the body actually consumes the `pl[2..3]` forecast as feed-forward.
 - Whether the forecast's remaining-distance bound tracks live distance or the move's initial total.
-- What `pl[26..27]` is used for, given autofocus works without it.
+- What `pl[26..27]` is, and whether it varies with focus on an AF lens.
 - Which bodies send message 0x0A `pl[8] = 7f`, and what `pl[39..83]` of the 93-byte form carries on
   a lens that fills it.

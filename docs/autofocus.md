@@ -377,7 +377,7 @@ cycle:
 | `pl[2..3]` | u16 LE focus position **one frame ahead**: `pl[20..21]` plus the distance the lens expects to travel before the next frame, never past the target. It equals `pl[20..21]` while at rest. | **CERTAIN** |
 | `pl[7..8]`, `pl[9..10]` | u16 LE lower and upper travel limits, the range every target is clamped into | **CERTAIN** |
 | `pl[13..14]` | u16 LE [defocus scale](#26-the-defocus-unit): position counts per defocus unit at the current aperture | **PROBABLE** |
-| `pl[23]` | `0x40` or `0x00`. Non-zero only while the current instruction is a Move; while moving it follows a four-frame pattern. | **POSSIBLE**; meaning **UNKNOWN** |
+| `pl[23]` | Bit 6 flips once per body cycle ([message 0x03](msg_0x03.md) `pl[10..11]`); see [message 0x06](msg_0x06.md) | Flip rule **PROBABLE**; meaning **UNKNOWN** |
 | `pl[32..38]` | Seven signed bytes: the frame-to-frame position differences over the last eight frames, newest last. A short velocity history. | **PROBABLE** |
 
 Taken together, these fields let the body follow a move in progress: where focus is, where it will
