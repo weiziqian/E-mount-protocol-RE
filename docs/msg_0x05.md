@@ -87,7 +87,7 @@ SELP1650    | A0 EA 70 49 1E 0F | E1 B9 12 A6 E1 F6 | ... 15 16 ... DE F2 B6 B9 
 | `22` | **Flags** | **Bit 7** set on every device that reports motion. **Bit 6 = lens in motion**: set while focus is being driven, while the focus ring is being turned (see `pl[60]`), and, on at least one lens, while the aperture is moving. Bits 0–5 are per-lens and static within a session: `0x38` SELP1650, `0x3C` SEL55210, `0x04` SEL2870, `0x08` SEL5518Z, `0x00` Loxia and Voigtländer. Frozen `0x80` on the LM-EA9 | Bit 7 and bit 6 for focus motion **CERTAIN**; bit 6 for aperture motion **POSSIBLE**; bits 0–5 **UNKNOWN** |
 | `23` | Subject distance, coarse | Focus-dependent. Over the Voigtländer's 0.3 m → ∞ sweep it takes 55 distinct values climbing monotonically `0x93` → `0xFF`. As a signed byte it is ≈ **−32 × dioptres**: `0x93` = −109, 109/32 = 3.41 dpt = 0.293 m, that lens's minimum focus distance; `0xFF` = −1 ≈ infinity. Sony lenses send a per-session constant (`0xFF` SELP1650 / SEL55210 / SEL5518Z, `0xD9` = 1.22 dpt ≈ 0.8 m SEL2870). The LM-EA9 sends `0xFF` forever | Focus dependence **CERTAIN** (536 frames, one lens); the −1/32 dpt scale **PROBABLE** |
 | **`24..25`**, **`26..27`** | **Focal length** | Duplicated u16 LE pair, mm × 10. Wide/tele on a zoom, near-equal on a prime. [Table below](#focal-length) | **CERTAIN** |
-| `28..29` | — | u16. Observed: 271 LM-EA9, **310 on both Yongnuo lenses**, 320 SEL5518Z, 312 SEL2870, 272 Voigtländer, 256 SELP1650, 384 SEL55210, **0 on the Loxia and both Viltrox adapters**. Two lenses of different focal length and format sharing one value rules out a per-lens optical quantity; three devices sending 0 while working show the field is optional | **UNKNOWN.** Ruled out: exit-pupil distance, maximum aperture, and "required" |
+| `28..29` | **Minimum focus distance** | u16 LE [distance code](autofocus.md#25-the-distance-code): `384 + 64 × log2(MFD)`, MFD in metres. Fixed per lens. Observed: 256 SELP1650 (0.25 m), 272 Voigtländer 15 mm (0.30 m), 312 SEL2870 (0.46 m), 320 SEL5518Z (0.50 m), 384 SEL55210 (1.0 m) — each its rated minimum focus distance. 0 on the Loxia and both Viltrox adapters: not reported, and the field is optional | **CERTAIN** |
 | `30..31` | — | An affine function of `pl[0..1]`, not independent. On the Voigtländer, `pl[0..1] − pl[30..31] = 5205` exactly across all 41 sampled values of a 461-frame observation. Zero on the LM-EA9, both Viltrox adapters and every Sony lens except the SEL2870 (345) and SEL55210 @210 (246) | **CERTAIN** |
 | **`32..37`** | **Optical row, slot A** | [Slot A](optical_data.md#4-slot-a--the-field-sampling-grid). Aperture-independent; changes only when the row index changes | Encoding **CERTAIN**; quantity **POSSIBLE** |
 | **`38..43`** | **Optical row, slot B** | [Slot B](optical_data.md#1-what-the-rows-carry). Alternates every frame between a type-1 and a type-0 row. Type 1 scales as `1/F` | Encoding **CERTAIN**; `∝ 1/F` **CERTAIN** |
@@ -343,7 +343,7 @@ while EXIF follows message 0x28.
 
 ## Open questions
 
-- `pl[5]`, `pl[19]`, `pl[28..29]`, `pl[61]`: position known, meaning unestablished.
+- `pl[5]`, `pl[19]`, `pl[61]`: position known, meaning unestablished.
 - `pl[6..7]`: a start-up value of unknown quantity.
 - `pl[22]` bits 0–5: per-lens and static.
 - `pl[48]` and `pl[59]` inside the aperture descriptor.
