@@ -1,6 +1,6 @@
 # Message 0x06 — focus range, focus position and event channel
 
-**Summary.** Focus travel limits, the focus position (now and one frame ahead), and the lens's
+**Summary.** Focus travel limits, the focus position (two fields), and the lens's
 focus-drive status and event channel. Frame 2 of the four-frame 60 Hz loop.
 
 **Direction:** L→B only.
@@ -32,7 +32,7 @@ TECHART LM-EA9  00 00 00 10 00 30 10 30 10 00 16 00 00 20 00 00 00 00 00 00 00 1
 | Field | Meaning | Confidence |
 | --- | --- | --- |
 | `pl[0]` | **Partly decoded.** Yongnuo writes `0x02`/`0x82`, then sets **bit 4 (`0x10`) when the position is within `0x20` counts of the lower travel limit** and **bit 3 (`0x08`) when within `0x20` of the upper**. Observed `0x81`/`0x82` on SELP1650, `0x82` on SEL55210, `0x00` on the Viltrox and the LM-EA9. | Near-limit bits **CERTAIN** on Yongnuo; bit 7 and the rest UNKNOWN. Still a native/adapter discriminator |
-| `pl[2..3]` | **Focus position, one frame AHEAD** — current position plus a motion forecast. SELP1650 reads 16384, inside its own reported range. **Scale: the lens's own encoder/step counts plus a fixed base** (Yongnuo: `16080 + steps`) — *not* message 0x05's normalised scale; it is **not** the [aperture value](aperture_value.md)'s scale, and the two are contrasted there. | **CERTAIN** |
+| `pl[2..3]` | **A focus position, in the same units as the travel limits `pl[7..8]`/`pl[9..10]`** (Yongnuo: `16080 + steps`) — *not* message 0x05's normalised scale, nor the [aperture value](aperture_value.md)'s. What position it is, is open: Yongnuo sends `pl[20..21]` plus a one-frame forecast (below); on Sony natives it holds still at rest while `pl[20..21]` jitters ±1, and on the first moving frame already reads the position the move ends at. | Units **CERTAIN**; meaning **UNKNOWN** |
 | `pl[4]` | `00` on primes (SEL5518Z, Yongnuo) and adapters; `d0` / `a1` SEL55210 @55 / @210 mm, `05` SEL2870 @70 mm, `07` SELP1650. Equal to `pl[11]` on every lens but the SELP1650 (`22`). | **UNKNOWN** |
 | `pl[5]` | `10` on primes; `11` / `4c` SEL55210 @55 / @210 mm, `4f` SEL2870, `10` SELP1650; `00` on the Viltrox. Equal to `pl[12] + 0x10` on every Sony lens — an addition, not a bit set (`3c` → `4c`). Read as u16, `pl[4..5] = pl[11..12] + 0x1000` covers both rules except the SELP1650's `pl[4]`; no carry into `pl[5]` has been observed, so the u16 reading is untested. | **UNKNOWN** |
 | `pl[6]` | `0x10` on every device, adapters included. The SELP1650 adds a 2-bit counter in bits 5–6 that steps every frame (`10 30 50 70`). | **UNKNOWN** |
@@ -160,9 +160,10 @@ observation**, and would confirm this whole section on the wire.
 
 ---
 
-## `pl[2..3]` vs `pl[20..21]` is NOW vs. ONE-FRAME-AHEAD
+## Yongnuo's `pl[2..3]`: a one-frame forecast
 
-The two focus-position fields are a feed-forward pair:
+This is one vendor's implementation, not an established meaning of the field — the Sony captures
+fit "target" better (field map). Yongnuo builds the two fields as:
 
 ```c
 pl[20..21] = pos;                 // the current position
@@ -183,8 +184,7 @@ The forecast is a **motion simulation**:
    polling and forecasts exactly one frame of it.
 5. Sign = direction of travel.
 
-So a native lens hands the body a **feed-forward term**: where focus is, and where it will be by the
-time the body next acts.
+So Yongnuo hands the body where focus is, and where it will be by the time the body next acts.
 
 ### The forecast never predicts past the target
 
@@ -210,8 +210,7 @@ measured position in `pl[20..21]`, and reports position plus predicted one-frame
 `pl[2..3]`, bounded by the target as above. The two are equal while focus is stationary and diverge,
 in the direction of travel, while it moves.
 
-Confidence: the *sending* side is CERTAIN. What the **body** does with the pair is inference — this
-shows a native lens computes and sends a forecast, not that Sony's servo consumes it as feed-forward.
+Confidence: CERTAIN for Yongnuo's code. It does not show what the field means to the body.
 
 Two open points on the bound, flagged rather than assumed:
 
@@ -286,8 +285,8 @@ autofocuses correctly, so the field is **not required for autofocus**.
   established.
 - `pl[25]`'s meaning on devices other than the LM-EA9.
 - `pl[4]`, `pl[5]`, `pl[6]` and `pl[11..12]`, and whether `pl[4..5]` is one u16.
-- Whether the body actually consumes the `pl[2..3]` forecast as feed-forward.
-- Whether the forecast's remaining-distance bound tracks live distance or the move's initial total.
+- What `pl[2..3]` is: a one-frame forecast (Yongnuo), the move's target (the Sony captures), or
+  something else — and what the body does with it.
 - What `pl[26..27]` is, and whether it varies with focus on an AF lens.
 - Which bodies send message 0x0A `pl[8] = 7f`, and what `pl[39..83]` of the 93-byte form carries on
   a lens that fills it.

@@ -20,7 +20,7 @@ The normal loop runs at the body's frame rate, about 60 Hz, four frames per cycl
 | Order | Dir | ID | Role in focusing |
 | --- | --- | --- | --- |
 | 1 | L→B | **[0x05](msg_0x05.md)** | **focus in physical terms**: subject distance, "in motion" flag, focus ring direction, lens switch (§4.4) |
-| 2 | L→B | **[0x06](msg_0x06.md)** | **focus servo status**: position now, position one frame ahead, travel limits, moving/stopped, tail blocks |
+| 2 | L→B | **[0x06](msg_0x06.md)** | **focus servo status**: focus position (two fields), travel limits, moving/stopped, tail blocks |
 | 3 | B→L | [0x03](msg_0x03.md) | body state; can carry records, but focus records have been observed only in 0x04 |
 | 4 | B→L | **[0x04](msg_0x04.md)** | **focus instructions**, as records |
 
@@ -212,7 +212,7 @@ F0 1B 00 01 A1 04 | 00 00 19 83 00 00 28 00 00 00 41 00 00 1D FF 7F 00 00 | 61 0
    one fast. Moves longer than the lens can manage in one frame simply take more frames. PROBABLE.
    The lens knows the frame period by timing the body's own frames.
 3. **Accelerate and decelerate smoothly** — ramp up, cruise, ramp down and stop at the target —
-   and keep 0x06 `pl[2..3]` showing where it will be one frame later (§4.1). POSSIBLE.
+   POSSIBLE.
 4. **A new Move replaces the running one.** If the new target is ahead in the direction of travel,
    the lens keeps going to the new target. If it is behind, the lens decelerates to rest and then
    reverses. The replaced command produces **no completion event**; only the latest one does. PROBABLE.
@@ -334,7 +334,7 @@ this mode is **UNKNOWN**. The reporting changes as follows:
 | 0x05 `pl[22]` | bit 6 set |
 | 0x05 `pl[20..21]` | the new subject distance |
 | 0x06 `pl[20..21]` | the new position |
-| 0x06 `pl[2..3]` | equal to `pl[20..21]`: no one-frame-ahead forecast in this mode |
+| 0x06 `pl[2..3]` | equal to `pl[20..21]` |
 
 With `pl[3] = 0x83` the ring is ignored. POSSIBLE throughout, except the ring-direction and
 subject-distance behaviour of 0x05, which has been observed on a manual lens (PROBABLE).
@@ -374,7 +374,7 @@ cycle:
 | `pl[0]` | `0x82` when the focus group is **at rest**. `0x02` while it is moving, or has only just stopped. Then bit 4 (`0x10`) is ORed in when the position is within `0x1F` counts of the lower limit, and bit 3 (`0x08`) when it is within `0x1F` counts of the upper limit. | Near-limit bits **PROBABLE**; bit 7 = at rest **PROBABLE** (`0x82` is what native lenses send while idle) |
 | `pl[1]` | Direction of travel: `0x00` stopped; `0x02` one direction; `0x04` the other | **POSSIBLE**; which value is which direction **UNKNOWN** |
 | `pl[20..21]` | u16 LE focus position **now**, sampled once per frame | **CERTAIN** |
-| `pl[2..3]` | u16 LE focus position **one frame ahead**: `pl[20..21]` plus the distance the lens expects to travel before the next frame, never past the target. It equals `pl[20..21]` while at rest. | **CERTAIN** |
+| `pl[2..3]` | u16 LE focus position, same units as the travel limits. Which position is open — see [message 0x06](msg_0x06.md). | Units **CERTAIN**; meaning **UNKNOWN** |
 | `pl[7..8]`, `pl[9..10]` | u16 LE lower and upper travel limits, the range every target is clamped into | **CERTAIN** |
 | `pl[13..14]` | u16 LE [defocus scale](#26-the-defocus-unit): position counts per defocus unit at the current aperture | **PROBABLE** |
 | `pl[23]` | Bit 6 flips once per body cycle ([message 0x03](msg_0x03.md) `pl[10..11]`); see [message 0x06](msg_0x06.md) | Flip rule **PROBABLE**; meaning **UNKNOWN** |
@@ -422,8 +422,7 @@ Rules:
 - If several events are waiting, they are sent **one per frame**, in order. PROBABLE.
 
 The appendix is the lens's explicit "done". The motion status in §4.1 carries the same information
-implicitly, because `pl[0]` returns to `0x82` and `pl[2..3]` equals `pl[20..21]` once the lens is at
-rest.
+implicitly, because `pl[0]` returns to `0x82` once the lens is at rest.
 
 ### 4.3 During a Scan: the status byte `pl[25]`
 
@@ -471,9 +470,9 @@ telling the body that focus never moves and its distance is unknown.
 
 | Cycle | Body 0x04 | Lens 0x06, next cycle |
 | --- | --- | --- |
-| n | `1D` target T, mode 0 | 0x06: `pl[0] = 0x02`, `pl[1]` = direction, `pl[2..3]` ahead of `pl[20..21]` toward T; 0x05: `pl[22]` bit 6 set |
+| n | `1D` target T, mode 0 | 0x06: `pl[0] = 0x02`, `pl[1]` = direction; 0x05: `pl[22]` bit 6 set |
 | n+1 | (bare, or a revised `1D`) | still moving, or… |
-| n+k | (bare) | arrived: 0x06 `pl[0] = 0x82`, `pl[1] = 0x00`, `pl[2..3] = pl[20..21]` = T, **appendix `1D 00`**; 0x05 `pl[22]` bit 6 clear, `pl[20..21]` = the distance of T |
+| n+k | (bare) | arrived: 0x06 `pl[0] = 0x82`, `pl[1] = 0x00`, `pl[20..21]` = T, **appendix `1D 00`**; 0x05 `pl[22]` bit 6 clear, `pl[20..21]` = the distance of T |
 
 **A Scan:**
 
@@ -481,7 +480,7 @@ telling the body that focus never moves and its distance is unknown.
 | --- | --- |
 | Approach to the run-up point | `pl[0] = 0x02`, moving |
 | Approach done, sweep launched | `pl[25] = 0x10`, then `0x20` |
-| Sweep across A–B at scan speed | `pl[2..3]` / `pl[20..21]` advance steadily; `pl[32..38]` show a constant velocity |
+| Sweep across A–B at scan speed | `pl[20..21]` advances steadily; `pl[32..38]` show a constant velocity |
 | Sweep done | `pl[25] = 0x30`, then `0x00`, `pl[0] = 0x82` |
 | About five frames later | appendix `1F 00` |
 
@@ -496,6 +495,7 @@ telling the body that focus never moves and its distance is unknown.
 - `rec[2..3]` and `rec[9..11]` of the Scan record.
 - The exact definition of the defocus unit, and what the `0x2E` query returns for operand 0.
 - Which body state calls for the gentler motion profile.
+- What 0x06 `pl[2..3]` is (see [message 0x06](msg_0x06.md)), and what the body does with it.
 - The meaning of the 0x04 header fields `pl[6]`, `pl[7]` and `pl[10]`, and whether any body sends
   `pl[3] = 0x81`.
 - Which 0x05 `pl[62]` value corresponds to which switch position.

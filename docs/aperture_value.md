@@ -23,8 +23,8 @@ quantises in thirds of 256" means.
 | **[0x28](msg_0x28.md)** | L→B | `[0x0F..0x10]` | The same live value, beside the focal length and the optical rows | **PROBABLE** |
 | **[0x35](msg_0x35.md)** | L→B | `[0x0F..0x10]` | A delta on this scale | **POSSIBLE** |
 
-Message 0x05 duplicates the value into two adjacent fields. **They are not a "now / one frame ahead"
-pair** — that split exists in [message 0x06](msg_0x06.md), for focus. One value, sent twice.
+Message 0x05 duplicates the value into two adjacent fields. One value, sent twice — unlike the two
+focus-position fields of [message 0x06](msg_0x06.md).
 
 ## There is no aperture *step* field
 
