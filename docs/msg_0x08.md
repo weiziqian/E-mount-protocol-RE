@@ -15,11 +15,51 @@ identical for every lens; the lens reply is **201 bytes**.
 
 | Field | Meaning | Confidence |
 | --- | --- | --- |
-| `pl[0..1]` | u16 — equals the lens's focus position (`00 13` LM-EA9, `bd 13` SELP1650) | PROBABLE |
-| `pl[6..7]` | u16 = 5632 on the LM-EA9 — **the focus limit it advertises**, which its own clamp disagreed with in earlier versions | PROBABLE |
+| `pl[0..1]` | u16 — possibly a focus position | POSSIBLE |
+| `pl[2..3]` | u16, larger than `pl[0..1]` — possibly a focus travel bound | POSSIBLE |
+| `pl[6..7]` | u16 — possibly a focus limit; `0x8000` on native AF lenses | POSSIBLE |
 | **`pl[13]`** | **Declares the [message 0x05](msg_0x05.md) length.** `(pl[13] & 0xFE) == 0x80` → 105 bytes, anything else → 117 bytes, before the body's [message 0x0A](msg_0x0A.md) can shorten it. **Also tracks the image format**: bit 5 (`0x20`) is set on every full-frame device and clear on every APS-C one, and clearing it confined a Sony a9 II's AF area to the APS-C region. [Below](#pl13-declares-the-message-0x05-length) | Length rule **CERTAIN** in Yongnuo firmware, **PROBABLE** as protocol; format observation **CERTAIN**, its meaning **POSSIBLE** |
+| **`pl[16..17]`** | **Shortest focal length, mm, BCD big-endian** (`00 16` = 16 mm). [Below](#focal-length-and-maximum-aperture--pl1621) | **CERTAIN** |
+| **`pl[18..19]`** | **Longest focal length, mm, BCD big-endian**; `00 00` on a prime | **CERTAIN** |
+| **`pl[20]`** | **Maximum aperture at the short end, BCD f-number** (`35` = f/3.5) | **CERTAIN** |
+| **`pl[21]`** | **Maximum aperture at the long end, BCD f-number**; `00` on a prime | **CERTAIN** |
+| **`pl[85]`** | **`0x80` stops AF on an adapter-class lens**; `0x04` works in both classes. [Below](#pl85) | Effect **CERTAIN** on one a9 II; meaning UNKNOWN |
 | The 16 structured runs below | Native-lens boilerplate | **CERTAIN that they are lens-independent** |
 | Everything else | UNKNOWN | |
+
+## Focal length and maximum aperture — `pl[16..21]`
+
+The lens's nameplate, in BCD: read the hex digits as decimal. Sent once, and identical at both ends
+of a zoom's range, so it is the rated spec, not a live value.
+
+| Device | Rated | `pl[16..17]` | `pl[18..19]` | `pl[20]` | `pl[21]` |
+| --- | --- | --- | --- | --- | --- |
+| Sony SELP1650 | 16–50 f/3.5–5.6 | `00 16` | `00 50` | `35` | `56` |
+| Sony SEL55210 | 55–210 f/4.5–6.3 | `00 55` | `02 10` | `45` | `63` |
+| Yongnuo YN35 DA | 35 f/1.8 | `00 35` | `00 00` | `18` | `00` |
+| Yongnuo 50 DA / DF | 50 f/1.8 | `00 50` | `00 00` | `18` | `00` |
+| Viltrox + Canon EF 50/1.8 | 50 f/1.8 | `00 50` | `00 00` | `18` | `00` |
+| Viltrox + Canon EF-S 24/2.8 | 24 f/2.8 | `00 24` | `00 00` | `28` | `00` |
+| Voigtländer 15/4.5 (manual) | 15 f/4.5 | `00 15` | `00 00` | `00` | `00` |
+
+A manual lens may leave the aperture at `00`. What the body uses these fields for is UNKNOWN.
+
+## `pl[85]`
+
+| Device | `pl[85]` |
+| --- | --- |
+| Yongnuo YN35 / 50 DA / 50 DF | `0x80` |
+| Sony SELP1650, SEL55210, Voigtländer 15 | `0x00` |
+| Viltrox EF adapters | `0x04` |
+
+**Observed on a Sony a9 II:** with [message 0x07](msg_0x07.md) `pl[0] = 02` (adapter class), a lens
+sending `0x80` here does not autofocus. Sending `0x04`, nothing else changed, restores AF, and
+`0x04` also works with `pl[0] = 01`.
+
+| Aspect | Confidence |
+| --- | --- |
+| `0x80` + adapter class → no AF; `0x04` → AF in both classes | **CERTAIN** on one a9 II |
+| What the byte means | **UNKNOWN** |
 
 ## Fill rate is a clean native/adapter discriminator
 

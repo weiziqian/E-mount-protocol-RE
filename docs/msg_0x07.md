@@ -15,12 +15,31 @@ reply is 34 bytes.
 
 | Field | Meaning | Confidence |
 | --- | --- | --- |
-| `pl[0]` | **`01` on every native, `02` on every adapter** | Discriminator **CERTAIN**; meaning PROBABLE (device class) |
+| `pl[0]` | **`01` on every native, `02` on every adapter.** Selects how the body drives focus: [below](#pl0-native-mode-vs-adapter-mode) | Discriminator **CERTAIN**; behaviour **CERTAIN** on one a9 II; mode reading POSSIBLE |
 | `pl[2]` | `35` SEL55210, `20` SELP1650, `60` on another native, `08` LM-EA9 and Viltrox | UNKNOWN |
 | `pl[6]` | **BCD firmware version on the TECHART LM-EA9** (`0x18` = 1.8) | CERTAIN for the LM-EA9 |
 | `pl[8]` | `0xA0` on **every** device measured | CERTAIN constant, meaning UNKNOWN |
 | **`pl[9..10]`** | **u16 LE Sony lens ID** | **CERTAIN** |
 | `pl[15..18]` | `60 92 86 5e` on the LM-EA9, on a third-party native, and on both Yongnuo lenses | **Protocol constant** — CERTAIN |
+
+## `pl[0]`: native mode vs adapter mode
+
+Observed on a Sony a9 II, the same lens switching only this byte:
+
+| | `01` | `02` |
+| --- | --- | --- |
+| Suspected meaning | native-lens mode | adapter-only mode |
+| Focus-area modes | all | only some |
+| AF during video | yes | no |
+| AF in magnified view | yes | no |
+| How the body drives focus | a search: scan, relative moves and absolute moves combined | straight to the target with absolute moves |
+
+With `02`, [message 0x08](msg_0x08.md#pl85) `pl[85] = 0x80` stops AF altogether.
+
+| Aspect | Confidence |
+| --- | --- |
+| The differences in the table | **CERTAIN** on one a9 II |
+| `01` = native mode, `02` = adapter mode | **POSSIBLE** |
 
 ## Lens IDs observed
 
