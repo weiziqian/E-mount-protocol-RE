@@ -15,8 +15,8 @@ identical for every lens; the lens reply is **201 bytes**.
 
 | Field | Meaning | Confidence |
 | --- | --- | --- |
-| `pl[0..1]` | u16 — possibly a focus position | POSSIBLE |
-| `pl[2..3]` | u16, larger than `pl[0..1]` — possibly a focus travel bound | POSSIBLE |
+| **`pl[0..1]`** | **Maximum aperture** (smallest f-number), u16 LE [aperture value](aperture_value.md) — e.g. `c0 11` = f/1.8 | **PROBABLE** |
+| **`pl[2..3]`** | **Minimum aperture** (largest f-number), same encoding — e.g. `00 19` = f/22 | **PROBABLE** |
 | `pl[6..7]` | u16 — possibly a focus limit; `0x8000` on native AF lenses | POSSIBLE |
 | **`pl[13]`** | **Declares the [message 0x05](msg_0x05.md) length.** `(pl[13] & 0xFE) == 0x80` → 105 bytes, anything else → 117 bytes, before the body's [message 0x0A](msg_0x0A.md) can shorten it. **Also tracks the image format**: bit 5 (`0x20`) is set on every full-frame device and clear on every APS-C one, and clearing it confined a Sony a9 II's AF area to the APS-C region. [Below](#pl13-declares-the-message-0x05-length) | Length rule **CERTAIN** in Yongnuo firmware, **PROBABLE** as protocol; format observation **CERTAIN**, its meaning **POSSIBLE** |
 | **`pl[16..17]`** | **Shortest focal length, mm, BCD big-endian** (`00 16` = 16 mm). [Below](#focal-length-and-maximum-aperture--pl1621) | **CERTAIN** |
@@ -130,7 +130,7 @@ not AF-specific.
 | The two primes agree, the zoom differs | **23** | Zoom/OSS-related, *not* vendor-specific |
 | Yongnuo + Sony agree, Voigtländer differs | 13 | |
 | Voigtländer + Sony agree, Yongnuo differs | 2 | |
-| All three differ | **9** | Genuinely per-lens — the focus head |
+| All three differ | **9** | Genuinely per-lens — includes the aperture range `pl[0]`, `pl[1]`, `pl[3]` |
 
 The "prime vs zoom" split rules out reading these bytes as vendor-varying: at `pl[0x29]`, `0x2B`,
 `0x2E`, `0x33`, `0x35`, `0x3D`, `0x3E`, `0x52`, `0x53`, `0xB2` and others, two *unrelated vendors'*
@@ -208,9 +208,8 @@ like an adapter by this measure, and AF behaviour still did not change.
 **Protocol conclusion, and it is a hard one: whatever the body uses for off-axis PDAF correction is
 not carried in message 0x08.**
 
-Not covered by that test, and therefore **not** ruled out: the focus head and the 9 all-differ bytes
-— the lens's own focus position and travel range, where the LM-EA9's values are already right for
-its own helicoid.
+Not covered by that test, and therefore **not** ruled out: the 9 all-differ bytes, including the
+aperture range `pl[0..3]`.
 
 ## Manufacturer notes
 
@@ -228,7 +227,7 @@ its own helicoid.
   lens-independence rules out per-lens optics, leaving the purpose UNKNOWN.
 - The meaning of the 154 boilerplate bytes.
 - Whether the 23-byte "prime vs zoom" group really is zoom/OSS-related. One zoom against two primes.
-- The 9 all-differ bytes beyond the focus position and travel range.
+- The all-differ bytes other than the aperture range.
 
 ## Request frames, observed
 

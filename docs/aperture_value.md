@@ -17,6 +17,7 @@ quantises in thirds of 256" means.
 | --- | --- | --- | --- | --- |
 | **[0x05](msg_0x05.md)** | L→B | `pl[0..1]`, and an identical second copy at `pl[2..3]` | **The lens's current aperture**, once per 60 Hz frame | **CERTAIN** |
 | **[0x05](msg_0x05.md)** | L→B | `pl[44..59]` — the **aperture descriptor** | **Maximum and minimum aperture**, in a *different* encoding. [Section 3](#3-the-other-aperture-encoding-and-the-proof) | **CERTAIN** |
+| **[0x08](msg_0x08.md)** | L→B | `pl[0..1]`, `pl[2..3]` | **Maximum and minimum aperture**, sent once at init | **PROBABLE** |
 | **[0x1B](msg_0x1B.md)** | B→L | `pl[0..1]` | **The body's aperture command.** The reply echoes the requested value back | **PROBABLE** |
 | **[0x03](msg_0x03.md)** | B→L | `pl[5..6]` | A commanded aperture, every frame. At least one lens clamps it to its own range before use | **PROBABLE** |
 | **[0x03](msg_0x03.md)** | B→L | `pl[3..4]` | A second value on the same grid | **UNKNOWN** |

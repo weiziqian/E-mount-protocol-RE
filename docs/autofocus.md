@@ -372,7 +372,7 @@ cycle:
 | Field | Content | Confidence |
 | --- | --- | --- |
 | `pl[0]` | `0x82` when the focus group is **at rest**. `0x02` while it is moving, or has only just stopped. Then bit 4 (`0x10`) is ORed in when the position is within `0x1F` counts of the lower limit, and bit 3 (`0x08`) when it is within `0x1F` counts of the upper limit. | Near-limit bits **PROBABLE**; bit 7 = at rest **PROBABLE** (`0x82` is what native lenses send while idle) |
-| `pl[1]` | Direction of travel: `0x00` stopped; `0x02` one direction; `0x04` the other | **POSSIBLE**; which value is which direction **UNKNOWN** |
+| `pl[1]` | Direction of travel: `0x00` stopped; `0x02` toward higher position values; `0x04` toward lower | **PROBABLE** (Yongnuo and TTArtisan firmware agree) |
 | `pl[20..21]` | u16 LE focus position **now**, sampled once per frame | **CERTAIN** |
 | `pl[2..3]` | u16 LE focus position, same units as the travel limits. Which position is open — see [message 0x06](msg_0x06.md). | Units **CERTAIN**; meaning **UNKNOWN** |
 | `pl[7..8]`, `pl[9..10]` | u16 LE lower and upper travel limits, the range every target is clamped into | **CERTAIN** |
@@ -488,8 +488,7 @@ telling the body that focus never moves and its distance is unknown.
 
 ## Open questions
 
-- Whether the lower travel limit is the infinity end on every lens, and which `pl[1]` value
-  corresponds to which direction.
+- Whether the lower travel limit is the infinity end on every lens.
 - Whether `0x7FFF` in a Move means "to the limit" or "no target".
 - The units of the Scan speed code and of the Drive velocity.
 - `rec[2..3]` and `rec[9..11]` of the Scan record.
