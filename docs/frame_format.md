@@ -127,6 +127,7 @@ same residue and it does not. Recorded as an open question; nothing in the proto
 | --- | --- | --- |
 | `0x02` | `MESSAGE_CLASS_INIT` | The startup handshake. Strict request/response, `seq` = 0. |
 | `0x01` | `MESSAGE_CLASS_NORMAL` | The 60 Hz status loop. |
+| `0x03` | — | Replies of [0x3A](msg_0x3A.md) and [0x3B](msg_0x3B.md), the paged file transfer. Seen in Yongnuo and TTArtisan firmware only, never on the wire. **PROBABLE** |
 
 ## Sequence byte — CERTAIN
 

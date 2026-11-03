@@ -208,6 +208,8 @@ PROBABLE, and worth remembering before assuming a fixed layout.
 | **[0x32](docs/msg_0x32.md)** | ? | ? | implemented but not advertised |
 | **[0x34](docs/msg_0x34.md)** | ? | ? | unknown; holds the 850 pair |
 | **[0x35](docs/msg_0x35.md)** | L→B | init | second carrier for the correction rows |
+| **[0x3A](docs/msg_0x3A.md)** | L→B | `0x03` | size of the 0x3B file |
+| **[0x3B](docs/msg_0x3B.md)** | L→B | `0x03` | paged optical file (pupil/vignetting table) |
 | **[0x3D](docs/msg_0x3D.md)** | both | init | unknown; requested by later bodies |
 | **[0x3F](docs/msg_0x3F.md)** | both | init | lens name string; requested by later bodies |
 | **[0x4C](docs/msg_0x4C.md)** | ? | ? | beyond the capability bitmap |
