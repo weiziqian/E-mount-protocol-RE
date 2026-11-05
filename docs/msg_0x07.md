@@ -3,8 +3,8 @@
 **Summary.** Lens identification. The second exchange of the init phase, immediately after the
 capability bitmap.
 
-**Direction:** both. The body request is 1 byte (`00`, on the A6000 and the a9 II alike); the lens
-reply is 34 bytes.
+**Direction:** both. The body request is 1 byte — `00` on the A6000 and the a9 II, `08` in the
+A7 IV firmware; meaning UNKNOWN. The lens reply is 34 bytes.
 
 **Class:** init (`0x02`).
 
@@ -15,11 +15,14 @@ reply is 34 bytes.
 
 | Field | Meaning | Confidence |
 | --- | --- | --- |
-| `pl[0]` | **`01` on every native, `02` on every adapter.** Selects how the body drives focus: [below](#pl0-native-mode-vs-adapter-mode) | Discriminator **CERTAIN**; behaviour **CERTAIN** on one a9 II; mode reading POSSIBLE |
-| `pl[2]` | `35` SEL55210, `20` SELP1650, `60` on another native, `08` LM-EA9 and Viltrox | UNKNOWN |
+| `pl[0]` | **`01` on every native, `02` on every adapter.** Selects how the body drives focus: [below](#pl0-native-mode-vs-adapter-mode). The A7 IV reads `pl[0] & 3` and **aborts the handshake on `0` or `3`** (log `LENS UNKNOWN`) | Discriminator **CERTAIN**; behaviour **CERTAIN** on one a9 II; abort **CERTAIN** on the A7 IV firmware; mode reading **PROBABLE** |
+| **`pl[1]`** | **UART speeds the lens supports.** bit 1 → speed 1, bit 2 → speed 2. The body requests the fastest one it also supports in [message 0x0C](msg_0x0C.md), and skips 0x0C if neither bit is set. Every device measured sends `03`, and the A6000 then sends `0C 02` | **CERTAIN** on the A7 IV firmware; consistent with every capture |
+| **`pl[2..3]`** | **Protocol version, u16 LE.** The A7 IV grades it at `0x0108`, `0x0110` and `0x0120`; below `0x0108` it ignores the [message 0x08](msg_0x08.md) `pl[85]` feature bits | **CERTAIN** on the A7 IV firmware |
+| **`pl[4]`** | **Must be `00`.** Any other value aborts the handshake on the A7 IV (log `LENS FIRMERR` — a lens-firmware error flag) | **CERTAIN** on the A7 IV firmware |
 | `pl[6]` | **BCD firmware version on the TECHART LM-EA9** (`0x18` = 1.8) | CERTAIN for the LM-EA9 |
 | `pl[8]` | `0xA0` on **every** device measured | CERTAIN constant, meaning UNKNOWN |
 | **`pl[9..10]`** | **u16 LE Sony lens ID** | **CERTAIN** |
+| `pl[25]`, `pl[26..27]`, `pl[28]` | Bit fields the A7 IV reads (`pl[28]` bit 0 feeds its [message 0x0B](msg_0x0B.md) request) | UNKNOWN |
 | `pl[15..18]` | `60 92 86 5e` on the LM-EA9, on a third-party native, and on both Yongnuo lenses | **Protocol constant** — CERTAIN |
 
 ## `pl[0]`: native mode vs adapter mode
@@ -40,6 +43,17 @@ With `02`, [message 0x08](msg_0x08.md#pl85) `pl[85] = 0x80` stops AF altogether.
 | --- | --- |
 | The differences in the table | **CERTAIN** on one a9 II |
 | `01` = native mode, `02` = adapter mode | **POSSIBLE** |
+
+## `pl[2..3]`: protocol version
+
+| Device | `pl[2..3]` |
+| --- | --- |
+| Sony SEL55210 | `0x0135` |
+| Sony SELP1650 | `0x0120` |
+| Viltrox EF adapter | `0x0108` |
+
+`0x0108` is the lowest grade the A7 IV distinguishes. Which features the higher grades unlock is
+UNKNOWN.
 
 ## Lens IDs observed
 
@@ -65,8 +79,13 @@ autofocus correctly. Two optically unrelated lenses claiming one unregistered ID
 receiving ID-keyed corrections, so **the correction data travels with the lens** — in messages 0x05
 and 0x08 — not with the ID.
 
-What may still matter is the **range** — E-mount space (≥ `0x8000`) versus the adapters' legacy
-range — not the value. That is the hypothesis worth testing; the value itself is not.
+What may still matter is the **range**, and the body does test it. The A7 IV classifies an ID as
+E-mount when its high byte is `0x80`–`0xBF` and its low 12 bits are not `0xFFF` (bits of message
+0x08 `pl[23..24]` can veto this). Sony's own IDs pass; Yongnuo's `0xC540` and the legacy adapter
+IDs do not. CERTAIN on the A7 IV firmware. What the classification controls is UNKNOWN.
+
+The same body also special-cases a handful of individual Sony IDs (`0x8019`, `0x8020`, `0x8036`–
+`0x8038`, `0x8057` among them) — per-lens quirks, not protocol.
 
 Caveat: the `LensType2` table is community-compiled from observed EXIF, so absence proves no one has
 published EXIF from that lens, not that Sony is unaware of the ID. And a body's internal correction
@@ -84,8 +103,8 @@ table is not a naming table. Strong inference, not proof.
 
 ## Open questions
 
-- `pl[2]`: differs per device, quantity UNKNOWN.
 - `pl[8]` = `0xA0`: a constant on every device, meaning UNKNOWN.
 - `pl[15..18]` = `60 92 86 5e`: a protocol constant, meaning UNKNOWN.
-- Whether a body gates behaviour on the ID *range* (E-mount vs legacy) rather than the value.
+- What the A7 IV's E-mount-ID-range classification changes.
+- What the protocol-version grades unlock.
 - Whether `pl[6]` is a version field on devices other than the LM-EA9.

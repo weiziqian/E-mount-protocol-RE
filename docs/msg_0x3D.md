@@ -32,8 +32,7 @@ What `bd` means is UNKNOWN.
 | TECHART | LM-EA9 — 63-byte payload (72-byte frame): `01` followed by zeros |
 | Yongnuo | 63-byte payload, identical across its whole lineup |
 
-The ID is inside the 64-bit bitmap's range, so it can be advertised in
-[message 0x01](msg_0x01.md). It is also the highest ID the Sony A6000 offers.
+It is the highest ID the Sony A6000 offers in [message 0x01](msg_0x01.md).
 
 ## Open questions
 

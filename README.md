@@ -29,6 +29,10 @@ Every field in this documentation carries one of:
 | **POSSIBLE** | One observation, or a pattern that fits but has not been cross-checked. |
 | **UNKNOWN** | Field position is known; meaning is not. |
 
+**"CERTAIN on the A7 IV firmware"** marks behaviour read directly from the code of a Sony body —
+the A7 IV (ILCE-7M4) 6.02 camera-processor firmware. It is exactly what that body checks, not an
+inference from traffic; whether other bodies check the same is not established.
+
 ## Contents
 
 - [1. Physical layer](#1-physical-layer)
@@ -145,6 +149,32 @@ Two consequences for anyone implementing a lens:
   `0x3F` and `0x3D` sit beyond the range the A6000 offers in its
   [capability bitmap](docs/msg_0x01.md), yet a later body asks for both.
 
+### The A7 IV firmware: most steps are optional
+
+The Sony A7 IV's handshake is a state machine in which most steps are taken **only if the lens
+declared the message** in its [capability bitmap](docs/msg_0x01.md) (and the body supports it too):
+
+```
+01  07  [4E]  [0C]  [4C]  0B  [3F]  [32]  [3D]  [5A]  08  09  0D  10  0A
+```
+
+`[ ]` marks an optional step. `0x0C` additionally needs a UART speed declared in
+[0x07](docs/msg_0x07.md) `pl[1]`. A lens declaring `0C 3F 3D` and none of `4E 4C 32 5A` gets exactly
+the a9 II sequence above. CERTAIN on the A7 IV firmware.
+
+The same code shows where a body **ends the handshake** on the lens's answer:
+
+| Message | Condition | Result |
+| --- | --- | --- |
+| [0x07](docs/msg_0x07.md) | `pl[0] & 3` is `0` or `3` | abort (`LENS UNKNOWN`) |
+| [0x07](docs/msg_0x07.md) | `pl[4] ≠ 0` | abort (`LENS FIRMERR`) |
+| [0x4C](docs/msg_0x4C.md) | `pl[0]` or `pl[1]` above the body's limit | abort |
+| [0x09](docs/msg_0x09.md) | `pl[7]` or `pl[8]` non-zero | fail (`SYNC START UP INFO ERR`) |
+| [0x10](docs/msg_0x10.md) | `pl[0]` bit 0 set | wait — the lens is not ready |
+| [0x4E](docs/msg_0x4E.md) | `pl[0]` bit 0 set | leave the normal handshake |
+
+A separate, shorter sequence is used on wake from sleep; it has not been analysed.
+
 `0x0A` remains the last exchange on both bodies, and answering it is what starts the normal loop.
 After it, the a9 II sends **no further init-class request** for the rest of the session.
 
@@ -193,12 +223,12 @@ PROBABLE, and worth remembering before assuming a fixed layout.
 | **[0x06](docs/msg_0x06.md)** | L→B | normal | focus range, focus position, event channel |
 | **[0x07](docs/msg_0x07.md)** | both | init | identity and lens ID |
 | **[0x08](docs/msg_0x08.md)** | both | init | the large descriptor |
-| **[0x09](docs/msg_0x09.md)** | both | init | small init exchange |
+| **[0x09](docs/msg_0x09.md)** | both | init | "start up info"; adapter sub-type |
 | **[0x0A](docs/msg_0x0A.md)** | both | init | init echo |
 | **[0x0B](docs/msg_0x0B.md)** | both | init | small init exchange |
 | **[0x0C](docs/msg_0x0C.md)** | both | init | baud-rate negotiation |
 | **[0x0D](docs/msg_0x0D.md)** | both | init | small init exchange |
-| **[0x10](docs/msg_0x10.md)** | both | init | small init exchange, long reply delay |
+| **[0x10](docs/msg_0x10.md)** | both | init | lens-ready handshake, long reply delay |
 | **[0x16](docs/msg_0x16.md)** | both | init | shutdown request |
 | **[0x19](docs/msg_0x19.md)** | ? | ? | unknown |
 | **[0x1B](docs/msg_0x1B.md)** | both | init | aperture command |
@@ -212,8 +242,9 @@ PROBABLE, and worth remembering before assuming a fixed layout.
 | **[0x3B](docs/msg_0x3B.md)** | L→B | `0x03` | paged optical file (pupil/vignetting table) |
 | **[0x3D](docs/msg_0x3D.md)** | both | init | unknown; requested by later bodies |
 | **[0x3F](docs/msg_0x3F.md)** | both | init | lens name string; requested by later bodies |
-| **[0x4C](docs/msg_0x4C.md)** | ? | ? | beyond the capability bitmap |
-| **[0x5A](docs/msg_0x5A.md)** | ? | ? | beyond the capability bitmap |
+| **[0x4C](docs/msg_0x4C.md)** | both | init | optional; version check against the body |
+| **[0x4E](docs/msg_0x4E.md)** | both | init | optional; one diverting flag |
+| **[0x5A](docs/msg_0x5A.md)** | both | init | optional; request carries the enabled-ID bitmap |
 
 Messages **0x05, 0x28 and 0x35 all carry the same 6-byte optical rows**, in three different
 layouts. They have their own reference: [the 6-byte optical rows](docs/optical_data.md).

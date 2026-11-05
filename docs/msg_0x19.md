@@ -14,9 +14,6 @@ observed on the wire.
 | --- | --- |
 | TECHART | LM-EA9 — a runtime-built response exists |
 
-The ID falls inside the 64-bit capability bitmap's range, so a device can advertise it in
-[message 0x01](msg_0x01.md).
-
 ## Open questions
 
 - Contents, direction, class, and length. All UNKNOWN.

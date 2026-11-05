@@ -23,7 +23,10 @@ identical for every lens; the lens reply is **201 bytes**.
 | **`pl[18..19]`** | **Longest focal length, mm, BCD big-endian**; `00 00` on a prime | **CERTAIN** |
 | **`pl[20]`** | **Maximum aperture at the short end, BCD f-number** (`35` = f/3.5) | **CERTAIN** |
 | **`pl[21]`** | **Maximum aperture at the long end, BCD f-number**; `00` on a prime | **CERTAIN** |
-| **`pl[85]`** | **`0x80` stops AF on an adapter-class lens**; `0x04` works in both classes. [Below](#pl85) | Effect **CERTAIN** on one a9 II; meaning UNKNOWN |
+| **`pl[27..30]`** | **Lens serial number, u32 LE** — the A7 IV prints it as `%010u` | **CERTAIN** on the A7 IV firmware |
+| `pl[34..35]` | u16 — a second lens model ID, which the A7 IV reports as the lens's model for one adapter sub-type ([message 0x09](msg_0x09.md)) | **PROBABLE** |
+| **`pl[85]`** | **`0x80` stops AF on an adapter-class lens**; `0x04` works in both classes. Bits 0–4 are separate feature flags, honoured only if [message 0x07](msg_0x07.md) declares protocol version ≥ `0x0108`. [Below](#pl85) | Effect **CERTAIN** on one a9 II; bit structure **CERTAIN** on the A7 IV firmware; meanings UNKNOWN |
+| `pl[197..200]` | Two u16; the A7 IV substitutes `0x0100` for each when it does not use the lens's values — 1.0 in 8.8 fixed point | POSSIBLE |
 | The 16 structured runs below | Native-lens boilerplate | **CERTAIN that they are lens-independent** |
 | Everything else | UNKNOWN | |
 
@@ -60,6 +63,11 @@ sending `0x80` here does not autofocus. Sending `0x04`, nothing else changed, re
 | --- | --- |
 | `0x80` + adapter class → no AF; `0x04` → AF in both classes | **CERTAIN** on one a9 II |
 | What the byte means | **UNKNOWN** |
+
+The A7 IV firmware reads `pl[85]` as bit fields: bits 0–4 each through a separate accessor, gated
+on the [message 0x07](msg_0x07.md) protocol version being at least `0x0108`; bit 7 is tested directly
+in five autofocus routines. That is consistent with `0x80` (bit 7) being what changes AF. CERTAIN on
+the A7 IV firmware; what each bit selects is UNKNOWN.
 
 ## Fill rate is a clean native/adapter discriminator
 
@@ -228,6 +236,9 @@ aperture range `pl[0..3]`.
 - The meaning of the 154 boilerplate bytes.
 - Whether the 23-byte "prime vs zoom" group really is zoom/OSS-related. One zoom against two primes.
 - The all-differ bytes other than the aperture range.
+- The A7 IV also reads `pl[8]`, `pl[9]`, `pl[11]`, `pl[12]`, `pl[13]`, `pl[14]`, `pl[23..24]`,
+  `pl[26]` and `pl[32]` as small enums and bit fields, and compares `pl[15..22]` together with
+  `pl[34..35]` as one identity record. What they control is UNKNOWN.
 
 ## Request frames, observed
 

@@ -1,9 +1,9 @@
-# Message 0x4C — beyond the capability bitmap
+# Message 0x4C — a version check in the handshake
 
-**Summary.** An ID implemented by two manufacturers that **cannot be expressed in the 64-bit
-capability bitmap at all**, with UNKNOWN contents.
+**Summary.** An optional init exchange. The body compares the first two reply bytes with its own
+limits and **aborts the handshake** if the lens's are higher.
 
-**Direction:** UNKNOWN. **Class:** UNKNOWN.
+**Direction:** both. **Class:** init (`0x02`).
 
 `pl` is the payload: `pl[n]` is payload byte `n`, i.e. absolute frame offset `n + 6`. Ranges
 `pl[a..b]` are inclusive of both ends: `pl[a]` through `pl[b]`, length `b - a + 1`.
@@ -15,20 +15,22 @@ capability bitmap at all**, with UNKNOWN contents.
 | TECHART | LM-EA9 — 16 bytes, all zero |
 | Yongnuo | 7 bytes — `28 28 00 …` |
 
-## It lies outside the bitmap
+## Where it sits in the handshake
 
-[Message 0x01](msg_0x01.md)'s bitmap is 64 bits under `bit n ⇒ ID n+1`, so it can express IDs
-`0x01`…`0x40` only. `0x4C` = 76 is past that ceiling, so **no device can advertise this message and
-no body can learn of it from the handshake.**
+The A7 IV requests 0x4C after [message 0x0C](msg_0x0C.md) and before 0x0B, but only if the lens
+declares it in [message 0x01](msg_0x01.md) — at bit 75, `pl[9]` bit 3. It is expressible like any
+other ID; the 32-byte bitmap reaches `0x100`. CERTAIN on the A7 IV firmware.
 
-That gives the `pl[8..31]` region of message 0x01 — 24 bytes that are zero on every device observed
-— a plausible purpose: extension space for IDs above 64. That reading is UNKNOWN, but IDs like this
-one are what would need it.
+## Reply `pl[0]`, `pl[1]` — compared against the body
 
-[Message 0x5A](msg_0x5A.md) is in the same position.
+Each must be less than or equal to a corresponding limit held by the body; if either is higher, the
+A7 IV aborts the handshake. The pair is also forwarded to the main processor. This reads as a
+minimum-body-version requirement declared by the lens. Check **CERTAIN** on the A7 IV firmware;
+the version reading **PROBABLE**. The body's limit values are set at runtime and not known.
+
+`pl[3..4]` are read elsewhere; meaning UNKNOWN.
 
 ## Open questions
 
-- How a body would ever ask for a message it cannot be told about.
-- What Yongnuo's `28 28` opening encodes.
-- Whether `pl[8..31]` of message 0x01 is the extension space for these IDs.
+- The body's limit values.
+- What Yongnuo's `28 28` opening encodes as a version.
