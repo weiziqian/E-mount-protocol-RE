@@ -25,7 +25,7 @@ identical for every lens; the lens reply is **201 bytes**.
 | **`pl[21]`** | **Maximum aperture at the long end, BCD f-number**; `00` on a prime | **CERTAIN** |
 | **`pl[27..30]`** | **Lens serial number, u32 LE** — the A7 IV prints it as `%010u` | **CERTAIN** on the A7 IV firmware |
 | `pl[34..35]` | u16 — a second lens model ID, which the A7 IV reports as the lens's model for one adapter sub-type ([message 0x09](msg_0x09.md)) | **PROBABLE** |
-| **`pl[85]`** | **`0x80` stops AF on an adapter-class lens**; `0x04` works in both classes. Bits 0–4 are separate feature flags, honoured only if [message 0x07](msg_0x07.md) declares protocol version ≥ `0x0108`. [Below](#pl85) | Effect **CERTAIN** on one a9 II; bit structure **CERTAIN** on the A7 IV firmware; meanings UNKNOWN |
+| **`pl[85]`** | **`0x80` stops AF on an adapter-class lens**; `0x04` works in both classes. A bit field; bit 7 declares the lens's position-report latency. [Below](#pl85) | Effect **CERTAIN** on one a9 II; per-bit use **CERTAIN** on the A7 IV firmware; meanings mostly UNKNOWN |
 | `pl[197..200]` | Two u16; the A7 IV substitutes `0x0100` for each when it does not use the lens's values — 1.0 in 8.8 fixed point | POSSIBLE |
 | The 16 structured runs below | Native-lens boilerplate | **CERTAIN that they are lens-independent** |
 | Everything else | UNKNOWN | |
@@ -64,10 +64,25 @@ sending `0x80` here does not autofocus. Sending `0x04`, nothing else changed, re
 | `0x80` + adapter class → no AF; `0x04` → AF in both classes | **CERTAIN** on one a9 II |
 | What the byte means | **UNKNOWN** |
 
-The A7 IV firmware reads `pl[85]` as bit fields: bits 0–4 each through a separate accessor, gated
-on the [message 0x07](msg_0x07.md) protocol version being at least `0x0108`; bit 7 is tested directly
-in five autofocus routines. That is consistent with `0x80` (bit 7) being what changes AF. CERTAIN on
-the A7 IV firmware; what each bit selects is UNKNOWN.
+### Per bit, from the A7 IV firmware
+
+Bits 0–4 and 6 are read only if [message 0x07](msg_0x07.md) declares protocol version ≥ `0x0108`;
+below that the body treats them as 0. Bit 7 is read regardless.
+
+| Bit | What the A7 IV does with it | Meaning |
+| --- | --- | --- |
+| 0 | Together with a body-side condition, makes the body report `pl[34..35]` as the lens model and enables a mode | UNKNOWN |
+| 1 | The same, for one adapter sub-type ([message 0x09](msg_0x09.md)) only; also sets one entry of the body's feature table | UNKNOWN |
+| 2 | Selects a 0–3 feature level when `pl[9]` low nibble ≠ 0 | UNKNOWN |
+| 3 | Selects the same level when `pl[9]` low nibble = 0 | UNKNOWN |
+| 4 | Copied into the shooting-parameter block; one feature-table entry is its inverse | UNKNOWN |
+| 5 | Not read | none found |
+| 6 | Raises the same feature level to 3, or 2 if `pl[193] = 1` | UNKNOWN |
+| **7** | **Position-report latency.** The body pairs each image frame with a lens focus position from its per-frame history; with bit 7 set it looks back **half as far** — 1/2/4 samples instead of 2/4/8 depending on mode, and 1 frame instead of 2 in a second path | **PROBABLE** |
+
+The use in each row is **CERTAIN** on the A7 IV firmware. The bit-7 reading also fits the a9 II
+observation: a lens that claims the shorter latency but reports late would have every frame matched
+to the wrong position.
 
 ## Fill rate is a clean native/adapter discriminator
 
@@ -159,8 +174,10 @@ It is only a starting point. The body's [message 0x0A](msg_0x0A.md) request, two
 can force 105 bytes whatever this byte says (`pl[0..1] = ff 7f`), and cannot force 117. So
 `pl[13]` is a **ceiling**: 117 bytes are sent only if this byte asks for them and the body allows it.
 
-**The body picks that request from this byte.** On a Sony a9 II, `0x81` drew `ff 7f 00` (105
-bytes), and `0xe1` drew `ff ff 03` — and the body then **required** the 117-byte form: a lens that
+**The body picks that request from this byte — from bits 5 and 6 together.** With both set it
+sends `ff ff 03` (allowing 117), otherwise `ff 7f 00` (forcing 105); CERTAIN on the A7 IV firmware.
+On a Sony a9 II, `0x81` drew `ff 7f 00` (105 bytes), and `0xe1` drew `ff ff 03` — and the body then
+**required** the 117-byte form: a lens that
 kept sending 105 lost the session and was power-cycled. Details in
 [message 0x0A](msg_0x0A.md#the-request-depends-on-the-lenss-message-0x08).
 

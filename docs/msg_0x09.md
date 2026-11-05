@@ -16,7 +16,7 @@ What the Sony A7 IV firmware does with the reply:
 
 | Field | Meaning | Confidence |
 | --- | --- | --- |
-| **`pl[0] & 3`** | **Adapter sub-type**, read only when [message 0x07](msg_0x07.md) `pl[0]` declared an adapter: `1` and `2` select two different adapter classes; natives ignore it | Read **CERTAIN** on the A7 IV firmware; what the classes are UNKNOWN |
+| **`pl[0] & 3`** | **Adapter sub-type** ([message 0x2B](msg_0x2B.md)), read only when [message 0x07](msg_0x07.md) `pl[0]` declared an adapter; natives ignore it | Read **CERTAIN** on the A7 IV firmware; what the classes are UNKNOWN |
 | **`pl[7]`, `pl[8]`** | **Must be `00`.** Anything else fails the handshake (log `SYNC START UP INFO ERR`), except on one body variant | **CERTAIN** on the A7 IV firmware |
 | other bytes | Stored, not read by the handshake | — |
 
@@ -45,5 +45,4 @@ adapter and the LM-EA9 agree on the `01 01 00` opening.
 
 ## Open questions
 
-- What the two adapter sub-types are.
 - Why the two Sony natives reply differently in bytes the A7 IV does not read.

@@ -87,11 +87,20 @@ body: the a9 II never sent [message 0x16](msg_0x16.md), cut the lens's power wit
 restarted the session, repeatedly. The same lens sending 117 bytes worked normally. So `ff ff` is
 not merely permission — a body that sends it **requires** the long form. CERTAIN on this body.
 
-What `pl[2] = 03` means is UNKNOWN; every other request recorded has `00` there.
+### The rule, from the A7 IV firmware
 
-What the a9 II requests for other `pl[13]` values is not recorded. A lens sending `0x20` and the
-105-byte form works on it, so for `0x20` it does not demand the long form, although `0x20` also
-declares 117 by the rule above. The body therefore reads more of `pl[13]` than `& 0xFE`.
+The A7 IV starts the request at `ff 7f 00` and, if **0x08 `pl[13]` bits 5 and 6 are both set**
+(`pl[13] & 0x60 == 0x60`), adds `0x80` to `pl[1]` and `03` to `pl[2]` — giving `ff ff 03`. Nothing
+else in `pl[13]` enters the decision. That reproduces every a9 II observation: `0xe1` has both bits
+(`ff ff 03`), `0x81` and `0x20` each have only one (`ff 7f`), and is why `0x20` does not draw the
+long form although `& 0xFE` would declare it. CERTAIN on the A7 IV firmware; consistent with the
+a9 II.
+
+The A7 IV builds this form for natives and for adapters of sub-type `1`
+([message 0x2B](msg_0x2B.md)). For the other adapter classes it sends `pl[0] = 40` and zeros.
+
+`pl[2]` bits 0–1 always accompany the long form; their own meaning is UNKNOWN. Further bits of
+`pl[2]` and `pl[9]` are taken from the lens's [message 0x3D](msg_0x3D.md) reply.
 
 ## `pl[8]` selects the length of message 0x06
 

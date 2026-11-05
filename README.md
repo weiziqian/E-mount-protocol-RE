@@ -173,7 +173,8 @@ The same code shows where a body **ends the handshake** on the lens's answer:
 | [0x10](docs/msg_0x10.md) | `pl[0]` bit 0 set | wait — the lens is not ready |
 | [0x4E](docs/msg_0x4E.md) | `pl[0]` bit 0 set | leave the normal handshake |
 
-A separate, shorter sequence is used on wake from sleep; it has not been analysed.
+A separate, shorter sequence is used on wake from sleep; it has not been analysed. An adapter can
+also be re-identified mid-session with `0x0A` + [`0x2B`](docs/msg_0x2B.md).
 
 `0x0A` remains the last exchange on both bodies, and answering it is what starts the normal loop.
 After it, the a9 II sends **no further init-class request** for the rest of the session.
@@ -235,6 +236,7 @@ PROBABLE, and worth remembering before assuming a fixed layout.
 | **[0x1D](docs/msg_0x1D.md)** | B→L | ? | probably a frame length, not an ID |
 | **[0x20](docs/msg_0x20.md)** | B→L | ? | probably a frame length, not an ID |
 | **[0x28](docs/msg_0x28.md)** | L→B | init | third carrier for the correction rows |
+| **[0x2B](docs/msg_0x2B.md)** | both | init | adapter re-identification (adapters only) |
 | **[0x32](docs/msg_0x32.md)** | ? | ? | implemented but not advertised |
 | **[0x34](docs/msg_0x34.md)** | ? | ? | unknown; holds the 850 pair |
 | **[0x35](docs/msg_0x35.md)** | L→B | init | second carrier for the correction rows |
