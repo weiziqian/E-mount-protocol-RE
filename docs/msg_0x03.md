@@ -44,7 +44,7 @@ adapter form drops is the `2F` + index tail at `pl[20..22]`, nothing else.
 | `pl[12]` | 0 or 1 | UNKNOWN |
 | `pl[15]` | `02` or `03` | UNKNOWN |
 | `pl[20]` | `0x2F` constant on natives — an instruction tag rather than an arbitrary constant, see below | PROBABLE |
-| `pl[21..22]` | **Table row index pair** — same value space as message 0x05's `pl[77..78]` (`0x15 0x16 0x17`) | PROBABLE that it is the same index; see below |
+| `pl[21..22]` | **Table row index pair** — same value space as message 0x05's `pl[77..78]` (`0x15 0x16 0x17`) | **CERTAIN**: the lens echoes it two cycles later, see below |
 
 ### The aperture pair
 
@@ -110,29 +110,30 @@ seen on a second lens, not confirmed as protocol-wide:
 
 POSSIBLE.
 
-## Who drives the row index — deliberately left open
+## The body chooses the row; the lens answers two cycles later
 
-The same 2-byte index values appear in the body's 0x03 and in the lens's 0x05, drawn from the same
-small set. It is tempting to conclude that the body requests rows and the lens answers. The
-alignment does not support that cleanly:
+Each message 0x05 index `pl[77..78]` equals the `pl[21..22]` of the **second-to-last** message 0x03
+the body sent before it. The lens answers with a delay of two cycles.
 
-| Device | body idx == same-`seq` lens idx | body idx == *next* lens idx |
-| --- | --- | --- |
-| Sony SELP1650 | 59/180 | 118/180 |
-| Sony SEL55210 @55 | 24/74 | 39/74 |
-| Sony SEL55210 @210 | 47/131 | 68/131 |
+| Device | lag 1 | **lag 2** | lag 3 |
+| --- | --- | --- | --- |
+| Sony SELP1650 | 142/214 | **213/213** | 140/212 |
+| Sony SEL55210 @55 | 48/75 | **74/74** | 50/74 |
+| Sony SEL55210 @210 | 92/134 | **134/134** | 86/133 |
 
-"Predicts the next" wins consistently but is nowhere near a lock. So: **the index is shared
-between the two directions; causality is not established.** POSSIBLE, not PROBABLE.
+Frames are paired in time order. Pairing by `seq` alone gives false misses, because `seq` wraps at
+256. An earlier version of this section tested only lags 0 and 1 and called causality
+unestablished. **CERTAIN** on these three sessions, all with an A6000.
 
-One further data point does not settle it either. Yongnuo's implementation computes message
-0x05's `pl[80]` *locally* from its own `pl[78]`, so at least that derived byte is lens-side
-arithmetic rather than an echo of anything the body sent. That constrains the mechanism a little —
-the lens is not merely mirroring the body's tail — but it says nothing about who chooses the tag.
+The body plays a pattern of its own, for example `15 16` ×3 then `15 17` ×3 to the SELP1650, and the
+lens repeats that pattern two frames later.
 
-Knowing that `0x2F` is an instruction tag upgrades what the byte *means* without answering this
-question: it says nothing about whether the body issues the instruction or merely carries a value
-the lens already uses internally.
+The lens picks the index itself only before the first request arrives. The first frame is `00 00`;
+the next is a tag of the lens's own, `13 14` on the SELP1650 and the SEL55210 @55 or `11 12` on the
+SEL55210 @210, with `pl[80]` already set from the lookup.
+
+`pl[80]` is not echoed. The body never sends it, and the lens computes it from the tag
+([message 0x05](msg_0x05.md#pl80-and-modern-body-compatibility)).
 
 ## Manufacturer notes
 
@@ -147,5 +148,4 @@ the lens already uses internally.
 - `pl[7]`: why `0x94` only on the first frame of a session. UNKNOWN.
 - `pl[12]`, `pl[15]`: two-valued fields, meaning UNKNOWN.
 - `pl[2]`, `pl[8..9]`, `pl[13..14]`, `pl[16..19]`: not yet assigned a meaning.
-- Whether the row index at `pl[21..22]` is a request from the body or a value shared by both
-  sides. Unresolved — see above.
+- How the body chooses which rows to request.
