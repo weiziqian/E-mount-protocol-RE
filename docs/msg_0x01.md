@@ -61,7 +61,8 @@ Lens replies (first 8 bytes; the rest is zero on every lens measured):
 
 | Device | Mask | # IDs |
 | --- | --- | --- |
-| **Yongnuo YN35 / 50F1.8S** (native AF) | `ff 9f ff 5d ee 60 18 5e` | **42** |
+| **Yongnuo YN35 DA** (native AF) | `ff 9f ff 5d ee 60 18 5e` | **42** |
+| **Yongnuo 50F1.8S DF** (v04, native AF) | `ff 9f ff 5d ee 60 18 de` | **43** |
 | Sony SELP1650 (native) | `ff 9f ff 7d ee 60 08 00` | 37 |
 | Sony SEL55210 (native) | `ff 9f ff 5d ee 60 08 08` | 37 |
 | Viltrox EF adapter | `ff 9f 7d 5f 80 07 00 00` | 30 |
@@ -75,7 +76,8 @@ groups cleanly, which makes this message a usable native/adapter discriminator.
 - **TECHART** — the LM-EA9 is the least capable device measured, at 29 IDs. Its reply is a fixed
   constant: it sends the same 8 bytes regardless of what the body offered.
 - **Yongnuo** — the YN35 and 50F1.8S assert the largest set seen, 42 IDs, above both Sony natives
-  measured.
+  measured. The 50 DF's builder also sets bit 63 (ID `0x40`), which its stored template lacks and
+  which it has no handler for.
 - **Sony** — the two natives measured differ from each other only in the last byte.
 - **Viltrox** — the EF adapter asserts 30 IDs and sits with the adapters on both discriminator
   bytes.

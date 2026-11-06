@@ -20,6 +20,7 @@ after the baud-rate negotiation.
 | L→B | Sony SEL55210 | **`60 00`** |
 | L→B | Viltrox EF adapter | `60 00` |
 | L→B | TECHART LM-EA9 | `60 20` |
+| L→B | Yongnuo 50F1.8S DF | `60 00` — the request echoed, `pl[1]` forced to `00` |
 
 ## It is not a native/adapter discriminator
 
@@ -39,6 +40,9 @@ negotiation** sits, so 0x0B is the first exchange at the higher rate.
 - **Sony** — the two natives measured disagree: SELP1650 `60 20`, SEL55210 `60 00`.
 - **TECHART** — the LM-EA9 replies `60 20`.
 - **Viltrox** — replies `60 00`.
+- **Yongnuo** — the 50 DF echoes the request and clears `pl[1]`.
+
+The A7 IV only checks that a reply arrived; it does not read it. CERTAIN on the A7 IV firmware.
 
 ## Open questions
 

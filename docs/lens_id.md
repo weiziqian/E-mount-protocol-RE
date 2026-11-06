@@ -18,7 +18,7 @@ Ranges `pl[a..b]` are inclusive of both ends.
 | ID | A7 IV class | Examples |
 | --- | --- | --- |
 | `0x8000`–`0xBFFF`, low 12 bits ≠ `0xFFF` | **Sony E-mount** | SEL55210 `0x8012`, SELP1650 `0x8019` |
-| `0xC000`–`0xFFFF`, low 12 bits ≠ `0xFFF` | **third-party** | Yongnuo `0xC540`, Voigtländer `0xC730` |
+| `0xC000`–`0xFFFF`, low 12 bits ≠ `0xFFF` | **third-party** | Yongnuo `0xDE52`, `0xDE54`, Voigtländer `0xC730` |
 | anything else (`0x0000`–`0x7FFF`, or low 12 bits = `0xFFF`) | neither | Viltrox EF adapter `0x004E`, TECHART LM-EA9 `0x00EA` |
 
 - **E-mount:** the body passes "E-mount ID" to the main processor as one entry of the lens feature
@@ -110,5 +110,5 @@ stored value when the same lens comes back. Both bytes of the ID must be non-zer
 
 - What the main processor does with the E-mount entry.
 - What the 0x05/0x06 sub-records hold.
-- Whether other bodies classify IDs the same way. The a9 II autofocuses with third-party
-  `0xC540`, so at least nothing there depends on it fatally.
+- Whether other bodies classify IDs the same way. The a9 II autofocuses with third-party ID
+  (`0xC540`, on the rebuilt LM-EA9 firmware), so at least nothing there depends on it fatally.

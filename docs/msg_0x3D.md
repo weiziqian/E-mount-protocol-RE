@@ -52,10 +52,10 @@ The field bits are copied into the body's [0x0A](msg_0x0A.md) request, so a lens
 | Manufacturer | Reply |
 | --- | --- |
 | TECHART | LM-EA9: `pl[0] = 01`, the rest zero |
-| Yongnuo | identical across its whole lineup: `pl[0] = 01`, `pl[34] = 01` (a bit not read above) |
+| Yongnuo | 50 DF (v04), as its builder sends it: `pl[0] = 01`, `pl[1] = 01` (file 8, SteadyShotInfo), `pl[33..38] = 0f 07 04 ab 7f 02`. Its template table also holds a second record, `pl[0] = 01`, `pl[34] = 01`, which this page used to give; the builder does not send it |
 | TTArtisan | 50/1.8: `pl[0] = 01`, `pl[33] = 0C` (bits 2 and 3) |
 
-All three declare file 0 only.
+TECHART and TTArtisan declare file 0 only; the Yongnuo 50 DF also declares file 8.
 
 It is the highest ID the Sony A6000 offers in [message 0x01](msg_0x01.md).
 
