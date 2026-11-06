@@ -23,18 +23,47 @@ behave like **pupil and vignetting data across the image field**. On an a9 II it
 The pages joined in order give the file. Its end is zero-filled. The file is chosen by the preceding
 0x3A request.
 
+### What the body checks — CERTAIN on the A7 IV firmware
+
+- reply `pl[0] & 0x0f` must be `0`, or the transfer is abandoned;
+- reply `pl[1..2]` (u16 LE) must be the page the body is waiting for, or the page is dropped;
+- the body copies 488 bytes per page, and from the last page (the count from [0x3A](msg_0x3A.md))
+  only the size from 0x3A minus what it already has. That remainder must be 1–488, so the size and
+  the page count in 0x3A have to agree.
+
+The only integrity check is the frame's own 16-bit sum. Nothing checks the file as a whole.
+
+The A7 IV names this file `EclipseCom` (Eclipse = vignetting), which supports the reading
+[below](#the-table-ed).
+
 ## The file
 
-A 16-byte header followed by three chunks. Every chunk has an 8-byte header: a 2-character tag, a u16
-header size (`08 00`), and a u32 LE data length.
+A 16-byte header followed by three chunks and a check word. Every chunk has an 8-byte header: a
+2-character tag, a u16 header size (`08 00`), and a u32 LE data length.
 
 | Part | Contents | Confidence |
 | --- | --- | --- |
-| `LF` header | `4c 46 10 00`, u32 LE length of what follows, u32 version (`0b`, `0d`, `01` seen), u32 UNKNOWN | layout CERTAIN |
+| `LF` header | `4c 46 10 00`, u32 LE length of everything after this header (check word included), u32 version (`0b`, `0d`, `01` seen), u32 model ID (PROBABLE: Sony's own files carry `0x8900`, `0x8901` … here) | layout CERTAIN |
 | `ED` | **the main table**, [below](#the-table-ed) | layout CERTAIN |
 | `CS` | **the table's axes** — header `01 00 <Nf> 00 <Na> 00 00 00`, then `Nf` u16, then `Na` u16 | CERTAIN |
 | `LC` | 12 bytes: u16 `01` on full-frame lenses / `00` on APS-C, then four u16 UNKNOWN | format flag PROBABLE |
-| last 4 bytes | likely a checksum; not CRC-32 of any obvious range | UNKNOWN |
+| last 4 bytes | **check word**: the XOR of every u32 LE word before it, from the `LF` tag on | CERTAIN, [below](#the-check-word) |
+
+The A7 IV's parser also accepts the tags `EO` and `SO`, and skips any tag it does not know. It stops
+once it has read as far as the `LF` length counts from the start of the file, which falls before the
+check word. CERTAIN on the A7 IV firmware.
+
+### The check word
+
+The XOR rule holds for all 57 files in the A7 IV's built-in lens library, for both TTArtisan 50/1.8
+sets and for the Yongnuo 35. The Yongnuo 50 DF and the TTArtisan 17/1.8 carry a word that does not
+match. The Yongnuo 50 DF's word is the TTArtisan 50/1.8 set A's, over different data: it was carried
+over unchanged when the table was edited.
+
+**The body does not verify it.** The A7 IV never reads it (above). On the a9 II the file tested
+[below](#effect-on-the-body) carried a mismatched word and was used. Verified on the A7 IV firmware
+up to the hand-off to the main processor, which is not visible; PROBABLE beyond that. A lens should
+still send the right value; a later body may check it.
 
 ### The two axes (`CS`)
 
@@ -100,19 +129,19 @@ Tested on a **Sony a9 II**, with a device that serves 0x3A/0x3B and asserts both
 
 ## Observed files
 
-| Lens | `LF` version | `Nf` × `Na` | focus segments | `LC` format |
-| --- | --- | --- | --- | --- |
-| Yongnuo 50 DF | `0b` | 8 × 24 | 2 | `01` |
-| Yongnuo 35 DA | `0b` | 15 × 24 | 2–4 | `00` |
-| TTArtisan 50/1.8 — set A | `0b` | 8 × 24 | 2 | `01` |
-| TTArtisan 50/1.8 — set B | `01` | 9 × 25 | 2–3 | `01` |
-| TTArtisan 17/1.8 | `0d` | 4 × 24 | 2 | `00` |
+| Lens | `LF` version | `Nf` × `Na` | focus segments | `LC` format | check word |
+| --- | --- | --- | --- | --- | --- |
+| Yongnuo 50 DF | `0b` | 8 × 24 | 2 | `01` | wrong |
+| Yongnuo 35 DA | `0b` | 15 × 24 | 2–4 | `00` | right |
+| TTArtisan 50/1.8 — set A | `0b` | 8 × 24 | 2 | `01` | right |
+| TTArtisan 50/1.8 — set B | `01` | 9 × 25 | 2–3 | `01` | right |
+| TTArtisan 17/1.8 | `0d` | 4 × 24 | 2 | `00` | wrong |
 
 The TTArtisan 50/1.8 picks between its two sets according to the body: one set for some bodies, the
 other for the rest, which include the a9 II.
 
-These are all third-party lenses. No Sony lens's file has been seen, so a field can be a vendor
-convention rather than the protocol.
+These are all third-party lenses. The A7 IV's built-in library holds Sony's own files in the same
+format (same chunks, version `0b`), but no Sony lens has been seen serving one.
 
 ## Manufacturer notes
 
@@ -129,4 +158,4 @@ convention rather than the protocol.
 - Whether the columns are image heights, and which ones; what type 0 is; the zero point of the
   scale.
 - The `1` in the `ED` header (one zoom position, on a prime?) and the two zero words in each block.
-- The `LF` header's last word, the `LC` values, and the trailing checksum.
+- The `LC` values; what the `EO` and `SO` chunks hold.
