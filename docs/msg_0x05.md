@@ -24,8 +24,9 @@ for the whole session:
 1. **The lens declares a length in its [message 0x08](msg_0x08.md) reply, `pl[13]`.**
    `(pl[13] & 0xFE) == 0x80` → 105 bytes; any other value → 117 bytes.
 2. **The body's [message 0x0A](msg_0x0A.md) request can shorten it.** `pl[0..1] = ff 7f` → 105
-   bytes, whatever step 1 gave. `ff ff` → keep the step-1 value. The body can only shorten, never
-   lengthen.
+   bytes, whatever step 1 gave. `ff ff` → keep the step-1 value. The request is in fact a field bitmap
+   ([below](#the-body-parses-0x05-as-numbered-fields--certain-on-the-a7-iv-firmware)), and fields
+   the lens declares in [message 0x3D](msg_0x3D.md) can make the frame longer than 117 bytes.
 
 So a lens sends 117 bytes only if its message 0x08 declares the long form **and** the body does not
 send `ff 7f`.
@@ -52,10 +53,34 @@ one of 0x75 or 0x69, never the other" — held: on one body, it will.
 Yongnuo 50 F1.8S DF is known to use it from its firmware, not from a capture: it declares the long
 form, so it sends 117 on any body that does not send `ff 7f`.
 
-The two share a layout: **`pl[0..82]` is identical**, and the long form appends 12 bytes. Slots C
-and D are the head of one 25-byte record — the long form carries all 25 at `pl[83..107]`, the short
-form the first 13 at `pl[83..95]`. Every field below `pl[83]` sits at the same offset in both, so
+The two share a layout: **`pl[0..82]` is identical**, and the long form appends 12 bytes. The short
+form ends at `pl[95]`, the long form at `pl[107]`. Every field below `pl[83]` sits at the same offset in both, so
 offsets carry across variants. **CERTAIN.**
+
+### The body parses 0x05 as numbered fields — CERTAIN on the A7 IV firmware
+
+The body does not read fixed offsets. It cuts the payload into fields from a table, and keeps only
+the fields whose bit is set in its own [message 0x0A](msg_0x0A.md) request (`pl[0..7]`, bit `n` =
+field `n`). The fields, in the order they appear:
+
+| Field | `pl` | Size | | Field | `pl` | Size |
+| --- | --- | --- | --- | --- | --- | --- |
+| `00` | 0..7 | 8 | | `0B` | 77..82 | 6 |
+| `01` | 8 | 1 | | `0C` | 83..88 | 6 — slot C |
+| `02` | 9..16 | 8 | | `0D` | 89..94 | 6 — slot D |
+| `03` | 17..19 | 3 | | `0E` | 95 | 1 |
+| `04` | 20..29 | 10 | | `0F` | 96..101 | 6 |
+| `05` | 30..57 | 28 | | `10` | 102..104 | 3 |
+| `06` | 58..59 | 2 | | `11` | 105..107 | 3 |
+| `07` | 60..65 | 6 | | `12` | 108..111 | 4 |
+| `08` | 66 | 1 | | `13` | 112..115 | 4 |
+| `09` | 67..68 | 2 | | `14` | 116..119 | 4 |
+| `0A` | 69..76 | 8 | | `15` | 120..127 | 8 |
+
+The offsets above assume every earlier field is present. They are, in both forms: the 105-byte
+request asks for fields `00`–`0E`, the 117-byte one adds `0F`–`11`. Fields `12`–`15` are added only
+when the lens's [message 0x3D](msg_0x3D.md) declares them, so **a frame longer than 117 bytes is
+possible**. A lens must send exactly the fields asked for. A shorter or longer frame fails parsing.
 
 ## Reference payloads
 
@@ -76,34 +101,37 @@ SELP1650    | A0 EA 70 49 1E 0F | E1 B9 12 A6 E1 F6 | ... 15 16 ... DE F2 B6 B9 
 | **`0..1`** | **Aperture** | u16 LE [aperture value](aperture_value.md), the lens's current aperture | **CERTAIN** |
 | `2..3` | Aperture, repeated | The same value again, in every frame of every device observed | **CERTAIN** |
 | `4` | **Aperture settle countdown** | The number of status frames still needed for the aperture to reach the value the body commanded; counts down by one per frame to a resting value. [Section below](#the-aperture-settle-countdown-pl4). Frozen `00` on the LM-EA9 | **CERTAIN** |
-| `5` | — | A per-device value that jumps for a frame or two around motion. Observed: `0x1E`/`0x5E` SELP1650, `0x2C` SEL5518Z, `0x28`/`0xCA` SEL2870, `0x15`/`0x1A` SEL55210, `0x00` on the manual lenses, Yongnuo and the LM-EA9 | **UNKNOWN** |
-| `6..7` | Start-up value | u16, non-zero **only in the first status frame after init**, then zero: 19 SELP1650, 20 SEL55210, 17 SEL5518Z and Viltrox + EF 50. Zero every frame on Yongnuo. The LM-EA9 sends 16 forever, a value no other device sends at all | Behaviour **CERTAIN**; quantity **UNKNOWN** |
-| `8` | State | Not a constant. **Bit 0 = aperture at rest**, cleared while the aperture is moving: `0x02` moving / `0x03` at rest on Yongnuo; Sony lenses alternate `0x06`/`0x07`, `0x06` appearing in frames around motion; frozen `0x07` on the LM-EA9. Other bits **UNKNOWN** | Existence **CERTAIN**; bit 0 **PROBABLE** |
+| `5..6` | — | **One u16 LE**, 12-bit: the A7 IV reads `pl[5..6]` together and treats a value above `0xFFF` as 0. `pl[5]` is a per-device value that jumps for a frame or two around motion: `0x1E`/`0x5E` SELP1650, `0x2C` SEL5518Z, `0x28`/`0xCA` SEL2870, `0x15`/`0x1A` SEL55210, `0x00` on the manual lenses and Yongnuo | u16 reading **CERTAIN on the A7 IV firmware**; quantity **UNKNOWN** |
+| `6..7` | — | Non-zero **only in the first status frame after init**: `pl[6]` = 19 SELP1650, 20 SEL55210, 17 SEL5518Z and Viltrox + EF 50, zero every frame on Yongnuo. That first frame makes `pl[5..6]` exceed `0xFFF`, so the A7 IV discards it. **`pl[7]` is not read** | Behaviour **CERTAIN**; the old "u16 `pl[6..7]`" split **withdrawn** |
+| `8` | State | Not a constant. **Bit 0 = aperture at rest**, cleared while the aperture is moving: `0x02` moving / `0x03` at rest on Yongnuo; Sony lenses alternate `0x06`/`0x07`, `0x06` appearing in frames around motion; frozen `0x07` on the LM-EA9. **The A7 IV reads only bit 0**, and its AF path waits on it | Existence **CERTAIN**; bit 0 **PROBABLE**; other bits unread by the A7 IV |
 | `9..10`, `11..12` | — | Duplicated u16 pair. **42/42** on every Sony lens, both Viltrox adapters and the LM-EA9; **203/203** on both Yongnuo lenses; **0/0** on the Voigtländer and the Loxia across 1267 frames. Splits by autofocus capability, not by vendor | Values **CERTAIN**; the correlation **PROBABLE** |
 | `13..14`, `15..16` | — | Same split: **340/340** on Sony and the adapters, **407/407** on Yongnuo, **0/0** on both manual lenses | as above |
 | `17..18` | — | u16 LE on the [aperture value](aperture_value.md) grid, floored at `0x11C0` (4544 = f/1.83) with a default of `0x1400` (5120 = f/4). Zero on every Sony lens, both Viltrox adapters and the LM-EA9 | Encoding **CERTAIN**; quantity **UNKNOWN** |
-| `19` | — | A boolean. Zero on every device observed | **UNKNOWN** |
+| `19` | Flags | Zero on every device observed. The A7 IV reads **bits 0 and 1** as two flags, and **bit 6 = valid, bit 7 = sign**, giving a direction of ±1 | Bits read **CERTAIN on the A7 IV firmware**; meaning **UNKNOWN** |
 | `20..21` | **Subject distance** | u16 LE [distance code](autofocus.md#25-the-distance-code): `384 + 64 × log2(D)`, `D` in metres, so 1 m = 384 and each doubling adds 64; **`0x0700` = infinity, or no distance data**. The Voigtländer 15 mm walks 272, 299, 320, 351, 384, 448, `0x0700` as its ring turns 0.3 m → ∞ — exactly 0.3, 0.4, 0.5, 0.7, 1 and 2 m, the marks on its distance scale. A lens with electronic focus computes it from its focus position every frame. Every Sony lens measured, both Viltrox adapters and the LM-EA9 send a constant `0x0700` | Encoding **CERTAIN**; Sony's constant `0x0700` read as "not reported" **PROBABLE** |
 | `22` | **Flags** | **Bit 7** set on every device that reports motion. **Bit 6 = lens in motion**: set while focus is being driven, while the focus ring is being turned (see `pl[60]`), and, on at least one lens, while the aperture is moving. Bits 0–5 are per-lens and static within a session: `0x38` SELP1650, `0x3C` SEL55210, `0x04` SEL2870, `0x08` SEL5518Z, `0x00` Loxia and Voigtländer. Frozen `0x80` on the LM-EA9 | Bit 7 and bit 6 for focus motion **CERTAIN**; bit 6 for aperture motion **POSSIBLE**; bits 0–5 **UNKNOWN** |
 | `23` | Subject distance, coarse | Focus-dependent. Over the Voigtländer's 0.3 m → ∞ sweep it takes 55 distinct values climbing monotonically `0x93` → `0xFF`. As a signed byte it is ≈ **−32 × dioptres**: `0x93` = −109, 109/32 = 3.41 dpt = 0.293 m, that lens's minimum focus distance; `0xFF` = −1 ≈ infinity. Sony lenses send a per-session constant (`0xFF` SELP1650 / SEL55210 / SEL5518Z, `0xD9` = 1.22 dpt ≈ 0.8 m SEL2870). The LM-EA9 sends `0xFF` forever | Focus dependence **CERTAIN** (536 frames, one lens); the −1/32 dpt scale **PROBABLE** |
 | **`24..25`**, **`26..27`** | **Focal length** | Duplicated u16 LE pair, mm × 10. Wide/tele on a zoom, near-equal on a prime. [Table below](#focal-length) | **CERTAIN** |
 | `28..29` | **Minimum focus distance** | u16 LE [distance code](autofocus.md#25-the-distance-code): `384 + 64 × log2(MFD)`, MFD in metres. Fixed per lens. Observed: 256 SELP1650 (0.25 m), 272 Voigtländer 15 mm (0.30 m), 312 SEL2870 (0.46 m), 320 SEL5518Z (0.50 m), 384 SEL55210 (1.0 m) — each its rated minimum focus distance. 0 on the Loxia and both Viltrox adapters: not reported, and the field is optional | **CERTAIN** |
-| `30..31` | — | An affine function of `pl[0..1]`, not independent. On the Voigtländer, `pl[0..1] − pl[30..31] = 5205` exactly across all 41 sampled values of a 461-frame observation. Zero on the LM-EA9, both Viltrox adapters and every Sony lens except the SEL2870 (345) and SEL55210 @210 (246) | **CERTAIN** |
+| `30..31` | — | The A7 IV takes the smaller of this and a 12-bit limit of its own. An affine function of `pl[0..1]`, not independent. On the Voigtländer, `pl[0..1] − pl[30..31] = 5205` exactly across all 41 sampled values of a 461-frame observation. Zero on the LM-EA9, both Viltrox adapters and every Sony lens except the SEL2870 (345) and SEL55210 @210 (246) | **CERTAIN** |
 | **`32..37`** | **Optical row, slot A** | [Slot A](optical_data.md#4-slot-a--the-field-sampling-grid). Aperture-independent; changes only when the row index changes | Encoding **CERTAIN**; quantity **POSSIBLE** |
-| **`38..43`** | **Optical row, slot B** | [Slot B](optical_data.md#1-what-the-rows-carry). Alternates every frame between a type-1 and a type-0 row. Type 1 scales as `1/F` | Encoding **CERTAIN**; `∝ 1/F` **CERTAIN** |
-| **`44..59`** | **Aperture descriptor** | Maximum and minimum aperture in a second encoding. [Section below](#the-aperture-descriptor-pl4459) | Encoding **CERTAIN** |
-| `54..55` | Coarse focus position | `pl[54]` = the focus position counted from the infinity end, in [message 0x06](msg_0x06.md) position units, divided by 256; 0 at or past infinity. `pl[55]` zero. Yongnuo computes it from the current position and its infinity calibration, not from the target. Non-zero (`0x01`) on the SEL5518Z during its power-on sweep, zero once settled at infinity | **CERTAIN** on Yongnuo; **PROBABLE** on Sony |
+| **`38..43`** | **Optical row, slot B** | [Slot B](optical_data.md#1-what-the-rows-carry). Alternates every frame between a type-1 and a type-0 row. Type 1 scales as `1/F`. **The A7 IV, for a native, decodes only type-0 rows (byte 0 bit 7 clear)** and keeps the last one through a type-1 frame | Encoding **CERTAIN**; `∝ 1/F` **CERTAIN**; type-0-only **CERTAIN on the A7 IV firmware** |
+| **`44..57`** | **Aperture descriptor** | Maximum and minimum aperture in a second encoding. [Section below](#the-aperture-descriptor-pl4459). The body field ends at `pl[57]` | Encoding **CERTAIN** |
+| `58..59` | **Adapter sub-type** | A field of its own. **`pl[59] & 3` is an adapter's sub-type**, read every frame ([message 0x2B](msg_0x2B.md)); with 0x08 `pl[8]` high nibble 2, `pl[59] > 0x1F` also selects a mode. `00` on the Sony natives, `01` on both Viltrox adapters (their 0x09 sub-type) | **CERTAIN on the A7 IV firmware**; Viltrox and Sony values on the wire |
+| `54..55` | Coarse focus position | **Read by the A7 IV only if [message 0x3D](msg_0x3D.md) `pl[33]` bit 2 is set.** `pl[54]` = the focus position counted from the infinity end, in [message 0x06](msg_0x06.md) position units, divided by 256; 0 at or past infinity. `pl[55]` zero. Yongnuo computes it from the current position and its infinity calibration, not from the target. Non-zero (`0x01`) on the SEL5518Z during its power-on sweep, zero once settled at infinity | **CERTAIN** on Yongnuo; **PROBABLE** on Sony |
 | `60` | **Focus ring direction** | Signed byte: `0x01` and `0xFF` for the two directions the manual focus ring is being turned, `0x00` when it is still. Held for a few frames (about ten) after the ring stops. Moves the body commands do not set it. Observed on the Voigtländer, a manual lens: `0xFF` throughout a ring sweep, `0x00` once settled, `0x01` on a brief reverse. Always zero on the LM-EA9 | Ring rotation **PROBABLE**; hold time **POSSIBLE** |
-| `61` | — | `0x01` on most devices | **UNKNOWN** |
-| `62` | Lens switch | Two values, `0x01` and `0x03`, following a two-position control on the lens barrel. Updated only while no focus move is running or pending. Frozen `0x01` on the LM-EA9. Which value means which switch position is not established | Existence **CERTAIN**; switch reading **POSSIBLE** (supersedes the earlier "drive status" reading) |
-| **`77..78`** | **Row index** | A duplicated byte pair naming the row carried in slots C and D. **Chosen by the body**: it echoes [message 0x03](msg_0x03.md#the-body-chooses-the-row-the-lens-answers-two-cycles-later) `pl[21..22]` from two cycles earlier. Cycles `0x15, 0x16, 0x17` in the main loop and `0x09, 0x0B, 0x0C` during init. Some values mark **"nothing new this frame"** rather than a position — `0x00`, and on Yongnuo also `0x07`/`0x09`, deliver null rows with distinctive tag bytes. Whether the marker values are shared across vendors is **UNKNOWN** | Index and echo **CERTAIN**; null-marker convention **PROBABLE**; the values **not portable** |
-| `79` | Second index pair, byte 0 | `0x00` on every device measured | **UNKNOWN** |
-| **`80`** | Second index pair, byte 1 | A 14-entry lookup on the row tag `pl[78]`. [Section below](#pl80-and-modern-body-compatibility) | **CERTAIN** |
+| `61` | — | `0x01` on most devices. The A7 IV sets a flag when `pl[61]` or `pl[65]` is non-zero, if 0x08 `pl[18..19]` is non-zero | **UNKNOWN** |
+| `62` | Lens switch | Two values, `0x01` and `0x03`, following a two-position control on the lens barrel. Updated only while no focus move is running or pending. Frozen `0x01` on the LM-EA9. Which value means which switch position is not established. The A7 IV reads **bit 3** of it, which neither value sets, and bits 3–6 of `pl[64]` | Existence **CERTAIN**; switch reading **POSSIBLE** (supersedes the earlier "drive status" reading) |
+| `66`, `67..68` | — | The A7 IV only logs changes | **UNKNOWN** |
+| `69..76` | — | No reader in the A7 IV firmware | **UNKNOWN** |
+| **`77..78`** | **Row numbers** | **Two row numbers: `pl[77]` names the row in slot C, `pl[78]` the row in slot D.** The A7 IV files slot C as row `pl[77]` and slot D as row `pl[78]` (only if it differs), keeps rows 2–0x18, and drops rows 0 and 1. **Chosen by the body**: it echoes [message 0x03](msg_0x03.md#the-body-chooses-the-row-the-lens-answers-two-cycles-later) `pl[21..22]` from two cycles earlier. Cycles `0x15, 0x16, 0x17` in the main loop and `0x09, 0x0B, 0x0C` during init. Some values mark **"nothing new this frame"** rather than a position — `0x00`, and on Yongnuo also `0x07`/`0x09`, deliver null rows with distinctive tag bytes. Whether the marker values are shared across vendors is **UNKNOWN** | Index, echo and the C/D split **CERTAIN** (A7 IV firmware); null-marker convention **PROBABLE**; the values **not portable** |
+| `79` | Second index pair, byte 0 | `0x00` on every device measured. The A7 IV copies `pl[79..82]` and acts on none of them | **UNKNOWN** |
+| **`80`** | Second index pair, byte 1 | A 14-entry lookup on the row tag `pl[78]`. [Section below](#pl80-and-modern-body-compatibility). **Not read by the A7 IV** | Lookup **CERTAIN** |
 | **`81..82`** | **Effective focal length** | mm × 10, the focal length corrected for focus breathing, in the same units as `pl[24..25]`. On the Voigtländer, nominal 150, this field walks 154 → 163 as focus moves far → near. On Yongnuo the value at infinity equals that lens's own `pl[24..25]` — 358 on the YN35, 514 against 512 on the YN50 DF. Zero on every Sony lens, both Viltrox adapters and the LM-EA9 | **PROBABLE**; whether Sony uses the field at all **UNKNOWN** |
 | **`83..88`** | **Optical row, slot C** | [Slots C and D](optical_data.md#8-slots-c-and-d). A strict function of `pl[77]` on the SEL2870; carries null rows on some devices | Lookup **CERTAIN**; whether it carries per-index data is device-dependent |
 | **`89..94`** | **Optical row, slot D** | Round-robin retransmission of rows also seen in slots A, B and C | **PROBABLE** |
-| `83..107` | Slot C/D record | Slots C and D are the head of one 25-byte record. The 108-byte payload carries all 25; the 96-byte payload carries the first 13, `pl[83..95]` | **CERTAIN** |
-| `95` | 13th byte of that record | Does not track the row index: the SEL2870 holds `0x11` across all 109 frames while slots C and D cycle. Observed: `0x11` SELP1650 / SEL55210 / SEL2870, `0x02` SEL5518Z and both Yongnuo lenses, `0x00` Voigtländer, Loxia, both Viltrox adapters and the LM-EA9. On the SELP1650 and SEL5518Z it is `0x00` in the first status frame — the one whose row index is still `00 00` — and takes the lens's value from the second frame on | Position **CERTAIN**; why it is constant per Sony lens **UNKNOWN** |
+| `83..107` | Slot C/D record | Yongnuo stores this range as one 25-byte record. **The body reads separate fields** (table above): slots C/D, `pl[95]`, and in the long form `pl[96..101]`, `pl[102..104]`, `pl[105..107]`. In the long form a row is 9 bytes. The 6-byte row is extended by 3: `pl[96..98]` for slot A, `pl[102..104]` for slot C, `pl[105..107]` for slot D | Yongnuo layout **CERTAIN**; body fields **CERTAIN on the A7 IV firmware**; which extension goes with which row **PROBABLE** |
+| `95` | **An aperture value** | The A7 IV converts it to an [aperture value](aperture_value.md) `0x1A00 − 256·log2(pl[95])`, that is **f-number = 32/√`pl[95]`**; `0` means none. Sony's `0x11` → f/7.8, Yongnuo's and the SEL5518Z's `0x02` → f/22.6. What the aperture is (an f/8-type AF limit?) is **UNKNOWN**. Does not track the row index: the SEL2870 holds `0x11` across all 109 frames while slots C and D cycle. Observed: `0x11` SELP1650 / SEL55210 / SEL2870, `0x02` SEL5518Z and both Yongnuo lenses, `0x00` Voigtländer, Loxia, both Viltrox adapters and the LM-EA9. On the SELP1650 and SEL5518Z it is `0x00` in the first status frame — the one whose row index is still `00 00` — and takes the lens's value from the second frame on | Conversion **CERTAIN on the A7 IV firmware**; meaning **UNKNOWN** |
 
 ---
 
@@ -173,6 +201,8 @@ for the init tag `0x09`, `12` for the init tags `0x0B`/`0x0C`, and `00` for the 
 
 A Yongnuo 50 mm DF sending `pl[80] = 0` fails on a Sony A7M5; the same lens sending the computed
 value works. Older bodies — A6000, NEX-7 — complete init with devices that send `0` here.
+
+**The A7 IV never reads `pl[80]`.** Whatever the field fixed on the A7M5, it is not read on this body.
 
 The tags come in pairs sharing a value, and the values fall into two series, 6·(1,2,3) and
 10·(1,2,3), then 50. The **mapping** is established; what the values mean is **UNKNOWN**.
@@ -244,7 +274,7 @@ N = 2^((v − 8) / 16)
 | `48` | `0xA0` constant. **UNKNOWN** |
 | `51` | A second copy of `pl[44]` |
 | `52` | **Minimum** aperture |
-| `59` | `0x01` constant. **UNKNOWN** |
+| `59` | Not part of the descriptor: the **adapter sub-type**, `01` = sub-type 1 ([field map](#field-map)) |
 
 | Device | `pl[44]` | Maximum | `pl[46]` | `pl[52]` | Minimum |
 | --- | --- | --- | --- | --- | --- |
@@ -276,7 +306,8 @@ The conversion between this encoding and `pl[0..1]`'s is `value = 32 × (v − 8
 | `pl[9..16]` | 42/340 Sony and the adapters, 203/407 Yongnuo | 0/0 |
 | `pl[95]` | `0x11` Sony zooms, `0x02` SEL5518Z and Yongnuo | `0x00` |
 
-Both split by **autofocus capability** rather than by native versus adapter — two manual-focus
+On the A7 IV `pl[95]` converts to f/7.8 for `0x11` and f/22.6 for `0x02` (field map), so the split is
+"an aperture" against "none". Both split by **autofocus capability** rather than by native versus adapter — two manual-focus
 native lenses sit on the same side as the adapters in each.
 
 `pl[44..59]` looks like the sharpest such discriminator (eight natives all-zero against three
@@ -343,10 +374,10 @@ while EXIF follows message 0x28.
 
 ## Open questions
 
-- `pl[5]`, `pl[19]`, `pl[61]`: position known, meaning unestablished.
-- `pl[6..7]`: a start-up value of unknown quantity.
+- `pl[5..6]`, `pl[19]`, `pl[61]`: how the body reads them is known, but not what they mean.
+- What aperture `pl[95]` gives.
 - `pl[22]` bits 0–5: per-lens and static.
-- `pl[48]` and `pl[59]` inside the aperture descriptor.
+- `pl[48]` inside the aperture descriptor; what the `pl[59] > 0x1F` mode is.
 - What slot A measures. Aperture-independent, with an end-to-end ratio of ≈ 2 on every lens.
 - What the `pl[80]` lookup values mean, as opposed to the mapping.
 - Whether Sony populates `pl[81..82]`; every Sony lens measured sends 0.

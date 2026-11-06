@@ -263,7 +263,7 @@ PROBABLE, and worth remembering before assuming a fixed layout.
 | **[0x35](docs/msg_0x35.md)** | L→B | init | second carrier for the correction rows |
 | **[0x3A](docs/msg_0x3A.md)** | L→B | `0x03` | size of the 0x3B file |
 | **[0x3B](docs/msg_0x3B.md)** | L→B | `0x03` | paged optical file (pupil/vignetting table) |
-| **[0x3D](docs/msg_0x3D.md)** | both | init | unknown; requested by later bodies |
+| **[0x3D](docs/msg_0x3D.md)** | both | init | the lens's 0x3A/0x3B file bitmap and optional-field bits; requested by later bodies |
 | **[0x3F](docs/msg_0x3F.md)** | both | init | lens name string; requested by later bodies |
 | **[0x4C](docs/msg_0x4C.md)** | both | init | optional; version check against the body |
 | **[0x4E](docs/msg_0x4E.md)** | both | init | optional; one diverting flag |

@@ -47,20 +47,10 @@ For an adapter, the class comes from the 2-bit **adapter sub-type**: read from
 
 The stock LM-EA9 and the Viltrox both reply `01 01 …` to 0x09, so both are type 5.
 
-**The per-frame carrier is not settled.** The two body firmwares analysed point to different
-bytes:
-
-| Body firmware | Per-frame sub-type carrier |
-| --- | --- |
-| A7 IV ([0x2B](msg_0x2B.md)) | 0x06 `pl[0] & 3` |
-| a7S III | the second byte of 0x05 field `06`, read while 0x05 is parsed. That is `pl[59]` in the standard 0x05 layout |
-
-Either one of the two readings is wrong, or the bodies really differ. The difference matters for
-the stock LM-EA9, which sends 0x06 `pl[0] = 00` but 0x05 `pl[59] = 01`:
-- on the a7S III reading it is consistent with its 0x09 sub-type `1`;
-- on the A7 IV reading it is not, and would be re-identified every frame.
-
-That could explain an adapter failing on newer bodies, but it is unverified.
+**The per-frame carrier is 0x05 `pl[59] & 3`** (0x05 field `06`, second byte), read while 0x05 is
+parsed. Both the A7 IV and the a7S III firmware read it there; an earlier A7 IV reading that pointed
+at 0x06 `pl[0]` was a misread of the field lookup. On the wire the two Viltrox adapters send `01`,
+matching their 0x09 sub-type, and the Sony natives send `00`.
 
 ### Step 3 — native sub-switch: [0x08](msg_0x08.md) `pl[9]` low nibble
 
@@ -86,8 +76,7 @@ With low nibble 2, the AF evaluation gets one point per frame, the trace's final
 | Statement | Confidence |
 | --- | --- |
 | Steps 1 and 2 | **CERTAIN on the A7 IV and a7S III firmware** |
-| The 0x06 `pl[0]` carrier | **CERTAIN on the A7 IV firmware** ([0x2B](msg_0x2B.md)) |
-| The 0x05 field `06` carrier | **PROBABLE** on the a7S III firmware: the field lookup is read from code; its offset assumes the standard 0x05 layout |
+| The 0x05 `pl[59]` carrier | **CERTAIN on the A7 IV firmware** (field table and lookup read from code); consistent with the a7S III firmware and with the Viltrox captures |
 | Step 3 | **CERTAIN on the a7S III firmware** |
 
 ---
@@ -132,7 +121,4 @@ Details of the position handling are in
 ## Open questions
 
 - What the live-view gain setup does differently for adapters.
-- The per-frame sub-type carrier: 0x06 `pl[0]` (A7 IV firmware) or 0x05 field `06` (a7S III
-  firmware). Either a misreading or a real difference between bodies; it matters for the stock
-  LM-EA9, whose two carriers disagree.
 - The meaning of 0x08 `pl[9]` beyond its low nibble.

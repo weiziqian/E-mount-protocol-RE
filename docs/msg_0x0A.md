@@ -130,9 +130,14 @@ ever captured is 48 bytes long before its tail.
 | The value it sets is the 0x06 base length | **CERTAIN** — the 0x06 sender extends the payload by exactly that amount |
 | It is protocol behaviour that Sony lenses follow too | **POSSIBLE** — no body has been seen sending `7f`, so nothing on the wire bears on it either way |
 
-Note the shape: `ff 7f` vs `ff ff` in `pl[0..1]`, and `3f` vs `7f` in `pl[8]` — in both places the
-"extended" value is the observed one with **one more bit set**. That reads like a bitmap of optional
-formats the body accepts, in the manner of [message 0x01](msg_0x01.md). POSSIBLE.
+### The request is a field bitmap — CERTAIN on the A7 IV firmware
+
+`pl[0..7]` holds one bit per [message 0x05](msg_0x05.md#the-body-parses-0x05-as-numbered-fields--certain-on-the-a7-iv-firmware)
+field (bit `n` = field `n`), and `pl[8..15]` one bit per message 0x06 field (bit `n` = field
+`0x40 + n`). The body parses the lens's replies with exactly these fields. Its 0x06 field sizes
+explain Yongnuo's two lengths: `3f` = fields `40`–`45`, 39 bytes (frame 48); `7f` adds field `46`,
+45 bytes, giving 84 (frame 93). `pl[8]` bit 7 (field `47`) is set when 0x08 `pl[12]` bit 5 is, and
+`pl[9]` and further bits of `pl[2]` come from the lens's [message 0x3D](msg_0x3D.md).
 
 ## `00 00` at the end of the session
 

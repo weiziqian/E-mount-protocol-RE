@@ -26,10 +26,23 @@ Yongnuo firmware. TTArtisan ignores the byte.
 
 ## Other files — CERTAIN on the A7 IV firmware
 
-The A7 IV reads six files through 0x3A/0x3B, with the same checks for each. Its class names:
-`EclipseCom` (the optical file of [message 0x3B](msg_0x3B.md)), `BreathingCorrectionData`,
-`CamcurveData`, `FnoCorrectAbility`, `IrisDrivabilityData`, `SteadyShotInfo`. The request value that
-selects each one has not been traced.
+The A7 IV reads up to six files through 0x3A/0x3B, one after another, with the same checks for
+each. The request's `pl[0]` is the file number:
+
+| Order | A7 IV name | File | Read if |
+| --- | --- | --- | --- |
+| 1 | `CamcurveData` | `09` (or `10`) | [0x3D](msg_0x3D.md) bitmap bit 9 |
+| 2 | `BreathingCorrectionData` | `0D` | bit 13 |
+| 3 | `SteadyShotInfo` | `08` | bit 8 |
+| 4 | `FnoCorrectAbility` | `0C` | bit 12 |
+| 5 | `EclipseCom` (the optical file of [0x3B](msg_0x3B.md)) | `0A` if bit 10, else **`00`** | decided by the body at attach, not by the bitmap |
+| 6 | `IrisDrivabilityData` | `0B` or `0E` | bit 11 or 14 |
+
+The bitmap is the start of the 0x3D reply (bit `n` = file `n`). None of this runs unless the lens
+declares 0x3D, 0x3A and 0x3B in [message 0x01](msg_0x01.md). Every lens measured sets only bit 0,
+so on the A7 IV each one is asked only for the Eclipse file, as file `00`. A step whose bit is clear
+is skipped, so a lens is never asked for a file it did not declare. A reply that is missing or
+fails a check ends that step; it does not stall the body.
 
 TTArtisan 50/1.8 sends `00 a0 0a 00 00 06 00 …` for both of its files: 2720 bytes, which is the size
 of the larger file, and 6 pages. The stored template has `07` at `pl[5]`, and the code overwrites it
@@ -44,5 +57,5 @@ with `06` before sending.
 ## Open questions
 
 - The body's request, and whether a body ever sends it to a lens that does not assert 0x3A.
-- What the `08` object is; why Yongnuo adds 16 to the size; which `pl[0]` selects which of the six
-  files.
+- What the `08` object is (the A7 IV reads file `08` as `SteadyShotInfo`); why Yongnuo adds 16 to
+  the size; what files `09`–`0E` and `10` contain.

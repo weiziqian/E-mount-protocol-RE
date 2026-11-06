@@ -24,7 +24,7 @@ One 2-bit code, carried in three places, all decoded the same way by the A7 IV:
 | Carrier | When |
 | --- | --- |
 | [message 0x09](msg_0x09.md) `pl[0] & 3` | once, during the handshake |
-| [message 0x06](msg_0x06.md) `pl[0] & 3` | every frame |
+| [message 0x05](msg_0x05.md) `pl[59] & 3` | every frame |
 | this message, `pl[0] & 3` | on re-identification |
 
 All three are read **only** when [message 0x07](msg_0x07.md) `pl[0]` declares an adapter (`02`).
@@ -38,8 +38,8 @@ data" is **PROBABLE** (it is the only class that re-reads 0x08 and gets the lens
 
 The A7 IV runs a short re-identification sequence — `0x0A`, then `0x2B` — in two cases:
 
-1. **The sub-type in an adapter's message 0x06 changes** to one that maps to a different class
-   than the current one. The most likely cause is the lens behind the adapter being swapped.
+1. **The sub-type in an adapter's message 0x05 `pl[59]` changes** to one that maps to a different
+   class than the current one. The most likely cause is the lens behind the adapter being swapped.
 2. The body's main processor asks for it. What triggers that is not visible from the
    lens-control firmware.
 
@@ -61,13 +61,14 @@ No outcome leaves the device classed as native. CERTAIN on the A7 IV firmware.
 - **An adapter that declares it must answer it.** The body will not send an undeclared ID, but once
   in this sequence it waits for the reply with no timeout of its own; a declared, unanswered 0x2B
   leaves the session stuck.
-- **Keep the three sub-type carriers consistent.** If 0x06 `pl[0] & 3` disagrees with what 0x09
+- **Keep the three sub-type carriers consistent.** If 0x05 `pl[59] & 3` disagrees with what 0x09
   established, the body enters this sequence; if the reply then disagrees again, it repeats.
 
 ## Manufacturer notes
 
 - **TECHART**, **Viltrox** — both declare 0x2B (and 0x29, 0x2A) in [message 0x01](msg_0x01.md).
-  Both send 0x06 `pl[0] = 00`, sub-type `0`.
+  Both send 0x05 `pl[59] = 01`, sub-type `1`, matching their 0x09 `pl[0] = 01`. Sony natives send
+  `00`.
 - **Sony**, **Yongnuo** — do not declare it.
 
 ## Open questions
