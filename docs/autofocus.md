@@ -371,17 +371,18 @@ cycle:
 
 | Field | Content | Confidence |
 | --- | --- | --- |
-| `pl[0]` | `0x82` when the focus group is **at rest**. `0x02` while it is moving, or has only just stopped. Then bit 4 (`0x10`) is ORed in when the position is within `0x1F` counts of the lower limit, and bit 3 (`0x08`) when it is within `0x1F` counts of the upper limit. | Near-limit bits **PROBABLE**; bit 7 = at rest **PROBABLE** (`0x82` is what native lenses send while idle) |
-| `pl[1]` | Direction of travel: `0x00` stopped; `0x02` toward higher position values; `0x04` toward lower | **PROBABLE** (Yongnuo and TTArtisan firmware agree) |
-| `pl[20..21]` | u16 LE focus position **now**, sampled once per frame | **CERTAIN** |
-| `pl[2..3]` | u16 LE focus position, same units as the travel limits. Which position is open — see [message 0x06](msg_0x06.md). | Units **CERTAIN**; meaning **UNKNOWN** |
+| `pl[0]` | `0x82` when the focus group is **at rest**. `0x02` while it is moving, or has only just stopped. Then bit 4 (`0x10`) is ORed in when the position is within `0x1F` counts of the lower limit, and bit 3 (`0x08`) when it is within `0x1F` counts of the upper limit. The body reads only bit 6 (at the lower end) and bit 5 (at the upper end), ORed with its own position-vs-limit check. | Near-limit bits **PROBABLE**; bit 7 = at rest **PROBABLE** (`0x82` is what native lenses send while idle); body reading **CERTAIN on the a7S III firmware** |
+| `pl[1]` | Direction of travel: `0x00` stopped; `0x02` toward higher position values; `0x04` toward lower. The body's only reader of it is switched off. | **PROBABLE** (Yongnuo and TTArtisan firmware agree) |
+| `pl[20..21]` | u16 LE focus position **now**, latched at the frame sync; also the final point of the `pl[32..38]` trace | **CERTAIN** |
+| `pl[2..3]` | u16 LE focus position, same units as the travel limits. Which position is open — see [message 0x06](msg_0x06.md). The body refreshes its focus layer's current position from it every frame, and uses it as the AF evaluation's per-frame position for devices without the in-frame trace ([lens types](lens_types.md)). | Units **CERTAIN**; meaning **UNKNOWN** |
 | `pl[7..8]`, `pl[9..10]` | u16 LE lower and upper travel limits, the range every target is clamped into | **CERTAIN** |
 | `pl[13..14]` | u16 LE [defocus scale](#26-the-defocus-unit): position counts per defocus unit at the current aperture | **PROBABLE** |
 | `pl[23]` | Bit 6 flips once per body cycle ([message 0x03](msg_0x03.md) `pl[10..11]`); see [message 0x06](msg_0x06.md) | Flip rule **PROBABLE**; meaning **UNKNOWN** |
-| `pl[32..38]` | Seven signed bytes: the frame-to-frame position differences over the last eight frames, newest last. A short velocity history. | **PROBABLE** |
+| `pl[32..38]` | Seven signed bytes: the position trace **within the previous frame**, at one-eighth-frame steps, **older minus newer**, newest last. With `pl[20..21]` as the final point it gives eight in-frame positions. **It is not a history across frames.** See [msg 0x06](msg_0x06.md#pl3238-the-in-frame-position-trace). | **CERTAIN** on Yongnuo and on the a7S III firmware |
 
-Taken together, these fields let the body follow a move in progress: where focus is, where it will
-be next frame, how fast it has been moving, and whether it has come to rest.
+Taken together, these fields let the body follow a move in progress: where focus is, how it moved
+during the last frame, and whether it has come to rest. What one body actually reads is in
+[msg 0x06 — what the body reads](msg_0x06.md#what-the-body-reads-from-the-position-fields).
 
 ### 4.2 The tail of 0x06: events and query answers
 
@@ -441,6 +442,67 @@ About five frames after `pl[25]` returns to `0x00`, the appendix `0x1F 0x00` fol
 
 PROBABLE for the `0x10 → 0x20 → 0x30 → 0x00` sequence, which two implementations agree on. POSSIBLE
 for the one-or-two-frame holding and the five-frame delay before the appendix.
+
+#### How the body reads `pl[25]`
+
+Read from body firmware; not confirmed on the wire.
+
+**Decoding.**
+- The body reads only **bits 4–6**: phase = `(pl[25] >> 4) & 7`.
+- Bit 7 and the low nibble are ignored.
+- In the body's 0x06 field table, `pl[22..25]` form one 4-byte field, so whenever `pl[25]` is
+  present, `pl[22..24]` are sent with it.
+
+**No frame is missed.**
+- Each received 0x06 with a non-zero phase is pushed into a 4-entry FIFO.
+- Once per VD, the AF parser takes the phase of the latest 0x06 as the current phase, then drains
+  the FIFO:
+  - if the current phase is 0 or 2, any different queued phase replaces it;
+  - if it is 1, only a queued 3 replaces it;
+  - if it is 3, the queue is ignored.
+- So a `0x30` shown for a single frame, followed at once by `0x00`, is still seen as "finished".
+  **A lens does not need to hold a phase for more than one frame.**
+
+**What each phase does.** The body keeps a Scan state:
+
+| State | Meaning |
+| --- | --- |
+| 0 | idle |
+| 1 | the `0x1F` record has gone out in a 0x04 |
+| 2 | the lens has accepted the Scan |
+
+| Phase | `pl[25]` | Body action |
+| --- | --- | --- |
+| 0 | `0x00` | none |
+| 1 | `0x10` | Scan state ← 2 (accepted) |
+| 2 | `0x20` | none (but see the body flag below) |
+| 3 | `0x30` | Scan state 2 → 0, then the AF layer's pending completion callback is fired, once |
+
+- **Phase 3 is the body's "Scan finished" signal.** The callback that ends the AF step is driven by
+  `pl[25]`, not by the `1F 00` appendix, which is handled on a separate path.
+- A lens that never sends `0x30` leaves that callback pending.
+- Phase 1 sets the state to 2 unconditionally, so a stray `0x10` outside a Scan is not harmless.
+  Keep `pl[25] = 0x00` for Move, Stop and Drive.
+- One body-internal flag, whose condition is UNKNOWN, makes the body treat phase 2 as phase 3.
+
+**Two paths that do not use the lens's value.**
+
+- **Body-run Drive (classic path).** While the body's AF is running its own continuous drive
+  (`0x3C`, or `0x49` where available), it ignores the lens's `pl[25]` and generates the phase
+  itself. It counts the drive as finished when either:
+  - the `0x3C` event comes back with `p` equal to the drive's 2-bit sequence number; or
+  - failing that, `pl[2..3]` has not changed for **13 consecutive frames**, or the position has
+    reached the travel limit in the drive direction (`pl[9..10]` when driving up, `pl[7..8]` when
+    driving down).
+- **New asynchronous protocol.** This path is used when the lens declares all of
+  `0x44`–`0x49`. A Scan then goes out as message `0x45`, not as a `0x1F` record. Phase 3 still
+  fires the completion callback, but phase 1 does not change the state.
+
+| Statement | Confidence |
+| --- | --- |
+| Bits 4–6 decoding, the FIFO, and phase 3 = completion | **CERTAIN on the a7S III firmware** |
+| The Drive override and its 13-frame / limit fallbacks | **POSSIBLE** (control flow read; which AF modes take this path is UNKNOWN) |
+
 
 ### 4.4 Every frame: focus in physical terms, in 0x05
 

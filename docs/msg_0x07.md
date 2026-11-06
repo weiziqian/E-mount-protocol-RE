@@ -15,7 +15,7 @@ A7 IV firmware; meaning UNKNOWN. The lens reply is 34 bytes.
 
 | Field | Meaning | Confidence |
 | --- | --- | --- |
-| `pl[0]` | **`01` on every native, `02` on every adapter.** Selects how the body drives focus: [below](#pl0-native-mode-vs-adapter-mode). The A7 IV reads `pl[0] & 3` and **aborts the handshake on `0` or `3`** (log `LENS UNKNOWN`) | Discriminator **CERTAIN**; behaviour **CERTAIN** on one a9 II; abort **CERTAIN** on the A7 IV firmware; mode reading **PROBABLE** |
+| `pl[0]` | **`01` on every native, `02` on every adapter.** Selects how the body drives focus: [below](#pl0-native-mode-vs-adapter-mode). The A7 IV reads `pl[0] & 3` and **aborts the handshake on `0` or `3`** (log `LENS UNKNOWN`). What the body does differently per class: [lens types](lens_types.md) | Discriminator **CERTAIN**; behaviour **CERTAIN** on one a9 II; abort **CERTAIN** on the A7 IV firmware; mode reading **PROBABLE** |
 | **`pl[1]`** | **UART speeds the lens supports.** bit 1 → speed 1, bit 2 → speed 2. The body requests the fastest one it also supports in [message 0x0C](msg_0x0C.md), and skips 0x0C if neither bit is set. Every device measured sends `03`, and the A6000 then sends `0C 02` | **CERTAIN** on the A7 IV firmware; consistent with every capture |
 | **`pl[2..3]`** | **Protocol version, u16 LE.** The A7 IV grades it at `0x0108`, `0x0110` and `0x0120`; below `0x0108` it ignores the [message 0x08](msg_0x08.md) `pl[85]` feature bits | **CERTAIN** on the A7 IV firmware |
 | **`pl[4]`** | **Must be `00`.** Any other value aborts the handshake on the A7 IV (log `LENS FIRMERR` — a lens-firmware error flag) | **CERTAIN** on the A7 IV firmware |

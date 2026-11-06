@@ -18,6 +18,7 @@ identical for every lens; the lens reply is **201 bytes**.
 | **`pl[0..1]`** | **Maximum aperture** (smallest f-number), u16 LE [aperture value](aperture_value.md) — e.g. `c0 11` = f/1.8 | **PROBABLE** |
 | **`pl[2..3]`** | **Minimum aperture** (largest f-number), same encoding — e.g. `00 19` = f/22 | **PROBABLE** |
 | `pl[6..7]` | u16 — possibly a focus limit; `0x8000` on native AF lenses | POSSIBLE |
+| **`pl[9]`** | **The low nibble selects which focus positions the body's AF evaluation uses** (native devices). `4` → the in-frame trace in [0x06](msg_0x06.md) `pl[20..21]` + `pl[32..38]`, 8 points per frame. `2` → `pl[20..21]`, one point per frame. Anything else → 0x06 `pl[2..3]`, one point per frame. Observed `01` on a native (NEX-7 capture), `14` on the Yongnuo 50 DF, `02` on the stock LM-EA9. [Below](#pl9-low-nibble-selects-the-focus-position-source) | **CERTAIN on the a7S III firmware**; values **CERTAIN** |
 | **`pl[13]`** | **Declares the [message 0x05](msg_0x05.md) length.** `(pl[13] & 0xFE) == 0x80` → 105 bytes, anything else → 117 bytes, before the body's [message 0x0A](msg_0x0A.md) can shorten it. **Also tracks the image format**: bit 5 (`0x20`) is set on every full-frame device and clear on every APS-C one, and clearing it confined a Sony a9 II's AF area to the APS-C region. [Below](#pl13-declares-the-message-0x05-length) | Length rule **CERTAIN** in Yongnuo firmware, **PROBABLE** as protocol; format observation **CERTAIN**, its meaning **POSSIBLE** |
 | **`pl[16..17]`** | **Shortest focal length, mm, BCD big-endian** (`00 16` = 16 mm). [Below](#focal-length-and-maximum-aperture--pl1621) | **CERTAIN** |
 | **`pl[18..19]`** | **Longest focal length, mm, BCD big-endian**; `00 00` on a prime | **CERTAIN** |
@@ -25,7 +26,7 @@ identical for every lens; the lens reply is **201 bytes**.
 | **`pl[21]`** | **Maximum aperture at the long end, BCD f-number**; `00` on a prime | **CERTAIN** |
 | **`pl[27..30]`** | **Lens serial number, u32 LE** — the A7 IV prints it as `%010u` | **CERTAIN** on the A7 IV firmware |
 | `pl[34..35]` | u16 — a second lens model ID, which the A7 IV reports as the lens's model for one adapter sub-type ([message 0x09](msg_0x09.md)) | **PROBABLE** |
-| **`pl[85]`** | **`0x80` stops AF on an adapter-class lens**; `0x04` works in both classes. A bit field; bit 7 declares the lens's position-report latency. [Below](#pl85) | Effect **CERTAIN** on one a9 II; per-bit use **CERTAIN** on the A7 IV firmware; meanings mostly UNKNOWN |
+| **`pl[85]`** | **`0x80` stops AF on an adapter-class lens**; `0x04` works in both classes. A bit field; bit 7 declares the lens's position-report latency. Bit 2 matters only to an adapter: without it, an adapter gets the feature values of an unsupported device. [Below](#pl85) | Effect **CERTAIN** on one a9 II; per-bit use **CERTAIN** on the A7 IV firmware; bit 2 effect **CERTAIN on the a7S III firmware**; meanings mostly UNKNOWN |
 | `pl[197..200]` | Two u16; the A7 IV substitutes `0x0100` for each when it does not use the lens's values — 1.0 in 8.8 fixed point | POSSIBLE |
 | The 16 structured runs below | Native-lens boilerplate | **CERTAIN that they are lens-independent** |
 | Everything else | UNKNOWN | |
@@ -54,6 +55,7 @@ A manual lens may leave the aperture at `00`. What the body uses these fields fo
 | Yongnuo YN35 / 50 DA / 50 DF | `0x80` |
 | Sony SELP1650, SEL55210, Voigtländer 15 | `0x00` |
 | Viltrox EF adapters | `0x04` |
+| TECHART LM-EA9 (stock firmware) | `0x04` |
 
 **Observed on a Sony a9 II:** with [message 0x07](msg_0x07.md) `pl[0] = 02` (adapter class), a lens
 sending `0x80` here does not autofocus. Sending `0x04`, nothing else changed, restores AF, and
@@ -73,16 +75,80 @@ below that the body treats them as 0. Bit 7 is read regardless.
 | --- | --- | --- |
 | 0 | Together with a body-side condition, makes the body report `pl[34..35]` as the lens model and enables a mode | UNKNOWN |
 | 1 | The same, for one adapter sub-type ([message 0x09](msg_0x09.md)) only; also sets one entry of the body's feature table | UNKNOWN |
-| 2 | Selects a 0–3 feature level when `pl[9]` low nibble ≠ 0 | UNKNOWN |
+| 2 | Selects a 0–3 feature level when `pl[9]` low nibble ≠ 0. The level picks an adapter's feature-table values ([below](#bit-2-matters-to-adapters-only)) | UNKNOWN |
 | 3 | Selects the same level when `pl[9]` low nibble = 0 | UNKNOWN |
 | 4 | Copied into the shooting-parameter block; one feature-table entry is its inverse | UNKNOWN |
 | 5 | Not read | none found |
 | 6 | Raises the same feature level to 3, or 2 if `pl[193] = 1` | UNKNOWN |
-| **7** | **Position-report latency.** The body pairs each image frame with a lens focus position from its per-frame history; with bit 7 set it looks back **half as far** — 1/2/4 samples instead of 2/4/8 depending on mode, and 1 frame instead of 2 in a second path | **PROBABLE** |
+| **7** | **Position-report latency.** The body pairs each image frame with a lens focus position from its per-frame history; with bit 7 set it looks back **half as far** — 1/2/4 samples instead of 2/4/8 depending on mode, and 1 frame instead of 2 in a second path. The same latency also files the [0x06 in-frame trace](msg_0x06.md#pl3238-the-in-frame-position-trace) | **PROBABLE** |
 
 The use in each row is **CERTAIN** on the A7 IV firmware. The bit-7 reading also fits the a9 II
 observation: a lens that claims the shorter latency but reports late would have every frame matched
 to the wrong position.
+
+### Bit 2 matters to adapters only
+
+The body builds an internal feature table for the lens:
+- **A native gets fixed values**, and never reads bits 0–4 or 6 of `pl[85]` for it.
+- **An adapter of type 5** ([lens types](lens_types.md), 0x09 sub-type `1`) gets values chosen
+  from the feature level:
+  - With **bit 2 set** (level 1), the first entries match a native's.
+  - With **bit 2 clear** (level 0), the values are the ones the body uses for an unsupported
+    device.
+- **Adapters of type 1 or 2** always get the unsupported values.
+
+This matches hardware results:
+- The stock LM-EA9 (`0x04`) works as an adapter.
+- Clearing bit 2 stops adapter mode from running.
+- Setting or clearing it makes no difference in native mode.
+
+The individual table entries are not named in the firmware, so what each one switches is UNKNOWN.
+
+| Statement | Confidence |
+| --- | --- |
+| Bit 2 selects native-like vs unsupported feature values for a type-5 adapter, and is not read for a native | **CERTAIN on the a7S III firmware**; consistent with a hardware test |
+
+## `pl[9]` low nibble selects the focus-position source
+
+The body stores the 0x08 reply and reads `pl[9] & 0x0F` in several places. The most
+consequential one decides **which focus positions its AF evaluation works from**. The AF
+evaluation asks for the focus positions of a run of frames, and gets:
+
+| `pl[9] & 0x0F` | Native device ([lens type](lens_types.md) 4) | Positions per frame |
+| --- | --- | --- |
+| `4` | The in-frame trace: [0x06](msg_0x06.md) `pl[20..21]` and `pl[32..38]` rebuilt into eight points ([trace](msg_0x06.md#pl3238-the-in-frame-position-trace)) | **8**, up to 128 in total |
+| `2` | 0x06 `pl[20..21]`, the trace's final point | 1, up to 16 |
+| other | 0x06 `pl[2..3]` | 1, up to 16 |
+
+- A flag in the [0x3D](msg_0x3D.md) reply forces the first row whatever `pl[9]` says.
+- For adapters (0x07 `pl[0] = 02`) the nibble does not select the trace: they always get one
+  `pl[2..3]` per frame.
+- With nibble 2, an adapter's 0x06 `pl[0]` bit 6 can freeze the reported position
+  ([0x06](msg_0x06.md#what-the-body-reads-from-the-position-fields)).
+
+| Device | `pl[9]` | Class | Positions the AF evaluation gets |
+| --- | --- | --- | --- |
+| Sony native, NEX-7 capture | `01` | native | `pl[2..3]`, 1 per frame |
+| Yongnuo 50 DF | `14` | native | trace, 8 per frame |
+| Stock LM-EA9 | `02` | adapter | `pl[2..3]`, 1 per frame |
+
+The nibble is read in other places too, and those were not traced to a meaning. Besides deciding
+which `pl[85]` bit sets the feature level ([above](#pl85)):
+- for adapters, the Scan-sending code branches on values 1 and 2. With 1, a Scan is preceded by
+  a Move, and its start is recomputed from 0x06 `pl[2..3]` once the lens has stopped. With 2, a
+  different deferred path is taken;
+- the body's own continuous-drive logic is disabled for 2.
+
+The high nibble is UNKNOWN.
+
+So a device that sets nibble 4 commits to filling the 0x06 trace accurately. Its eight points
+become the AF evaluation's focus axis. A device that cannot sample its position within the frame
+should not set it.
+
+| Statement | Confidence |
+| --- | --- |
+| Nibble 4 / 2 / other selects the source as tabled | **CERTAIN on the a7S III firmware** |
+| The other uses of the nibble | Read; meaning **UNKNOWN** |
 
 ## Fill rate is a clean native/adapter discriminator
 
@@ -253,6 +319,7 @@ aperture range `pl[0..3]`.
 - The meaning of the 154 boilerplate bytes.
 - Whether the 23-byte "prime vs zoom" group really is zoom/OSS-related. One zoom against two primes.
 - The all-differ bytes other than the aperture range.
+- `pl[9]`: the high nibble, and the other uses of the low nibble.
 - The A7 IV also reads `pl[8]`, `pl[9]`, `pl[11]`, `pl[12]`, `pl[13]`, `pl[14]`, `pl[23..24]`,
   `pl[26]` and `pl[32]` as small enums and bit fields, and compares `pl[15..22]` together with
   `pl[34..35]` as one identity record. What they control is UNKNOWN.

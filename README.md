@@ -33,6 +33,9 @@ Every field in this documentation carries one of:
 the A7 IV (ILCE-7M4) 6.02 camera-processor firmware. It is exactly what that body checks, not an
 inference from traffic; whether other bodies check the same is not established.
 
+**"on the a7S III firmware"** marks the same kind of evidence from a second body, the Sony a7S III
+(ILCE-7SM3) camera-processor firmware, read by static analysis.
+
 ## Contents
 
 - [1. Physical layer](#1-physical-layer)
@@ -176,6 +179,24 @@ The same code shows where a body **ends the handshake** on the lens's answer:
 A separate, shorter sequence is used on wake from sleep; it has not been analysed. An adapter can
 also be re-identified mid-session with `0x0A` + [`0x2B`](docs/msg_0x2B.md).
 
+Two more conditions surround the message exchange:
+
+- **A pin handshake before the first frame.**
+  - The body steps two of its lines and waits for two of the lens's, in four steps.
+  - It polls every 5 ms, up to 400 times (1 ms × 2000 on one sensor variant), so the lens has
+    about 2 s to respond.
+  - If the lens misses that window, the body logs `SetupMode` and fails the lens.
+  - The same handshake runs again for the [0x0C](docs/msg_0x0C.md) speed change.
+- **Every init request must be answered.**
+  - A missing reply ends the handshake, and so does one that fails the frame checks: start byte
+    `F0`, length, checksum, `55` terminator, class 1–3, no class-1 frame during init.
+  - The reply timer's raw value is `0xE4E1C`; its unit is not established.
+
+| Check | Confidence |
+| --- | --- |
+| Both conditions | **CERTAIN on the a7S III firmware** |
+| Pin-handshake timing (about 2 s, if the timer unit is the microsecond the 5000 / 1000 values suggest) | **PROBABLE** |
+
 `0x0A` remains the last exchange on both bodies, and answering it is what starts the normal loop.
 After it, the a9 II sends **no further init-class request** for the rest of the session.
 
@@ -260,3 +281,8 @@ Messages **0x04 and 0x06 together form the focus loop**: the body packs focus in
 scan, stop, drive — as tagged records into 0x04, and the lens reports its motion and signals
 completion through 0x06. The instructions, the motion each one requires, and how the lens answers
 are described in [how auto focus works](docs/autofocus.md).
+
+During init the body sorts every device into a **lens type**, native or one of three adapter
+classes, from [message 0x07](docs/msg_0x07.md) `pl[0]` and the adapter sub-type. The type changes
+how the body re-checks the device, which optional fields it requests, and which focus positions its
+autofocus works from: [lens types](docs/lens_types.md).

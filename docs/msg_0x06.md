@@ -31,21 +31,21 @@ TECHART LM-EA9  00 00 00 10 00 30 10 30 10 00 16 00 00 20 00 00 00 00 00 00 00 1
 
 | Field | Meaning | Confidence |
 | --- | --- | --- |
-| `pl[0]` | **Partly decoded.** Yongnuo writes `0x02`/`0x82`, then sets **bit 4 (`0x10`) when the position is within `0x20` counts of the lower travel limit** and **bit 3 (`0x08`) when within `0x20` of the upper**. Observed `0x81`/`0x82` on SELP1650, `0x82` on SEL55210, `0x00` on the Viltrox and the LM-EA9. **For an adapter, bits 0–1 are its sub-type** ([message 0x2B](msg_0x2B.md)), read every frame; a change makes the body re-identify the adapter. | Near-limit bits **CERTAIN** on Yongnuo; adapter sub-type **CERTAIN** on the A7 IV firmware; bit 7 and the rest UNKNOWN. Still a native/adapter discriminator |
-| **`pl[1]`** | **Direction of travel**: `0x02` toward higher position values, `0x04` toward lower, `0x00` not moving. Same in Yongnuo and TTArtisan firmware; `00` on Sony natives at rest. | **CERTAIN** in two vendors' firmware; PROBABLE as protocol |
-| `pl[2..3]` | **A focus position, in the same units as the travel limits `pl[7..8]`/`pl[9..10]`** (Yongnuo: `16080 + steps`) — *not* message 0x05's normalised scale, nor the [aperture value](aperture_value.md)'s. What position it is, is open: Yongnuo sends `pl[20..21]` plus a one-frame forecast (below); on Sony natives it holds still at rest while `pl[20..21]` jitters ±1, and on the first moving frame already reads the position the move ends at. | Units **CERTAIN**; meaning **UNKNOWN** |
+| `pl[0]` | **Partly decoded.** Yongnuo writes `0x02`/`0x82`, then sets **bit 4 (`0x10`) when the position is within `0x20` counts of the lower travel limit** and **bit 3 (`0x08`) when within `0x20` of the upper**. Observed `0x81`/`0x82` on SELP1650, `0x82` on SEL55210, `0x00` on the Viltrox and the LM-EA9. **For an adapter, bits 0–1 are its sub-type** ([message 0x2B](msg_0x2B.md)), read every frame; a change makes the body re-identify the adapter. **Body:** reads only bit 6 (at the lower end) and bit 5 (at the upper end), each ORed with its own position-vs-limit check; no captured lens sets either. With 0x08 `pl[9]` low nibble 2, an adapter's bit 6 (with bit 4 clear) freezes the reported position. | Near-limit bits **CERTAIN** on Yongnuo; adapter sub-type **CERTAIN** on the A7 IV firmware; bit 7 and the rest UNKNOWN. Still a native/adapter discriminator; body reading **CERTAIN on the a7S III firmware** |
+| **`pl[1]`** | **Direction of travel**: `0x02` toward higher position values, `0x04` toward lower, `0x00` not moving. Same in Yongnuo and TTArtisan firmware; `00` on Sony natives at rest. **Body:** no effect; its only reader is switched off. | **CERTAIN** in two vendors' firmware; PROBABLE as protocol |
+| `pl[2..3]` | **A focus position, in the same units as the travel limits `pl[7..8]`/`pl[9..10]`** (Yongnuo: `16080 + steps`) — *not* message 0x05's normalised scale, nor the [aperture value](aperture_value.md)'s. What position it is, is open: Yongnuo sends `pl[20..21]` plus a one-frame forecast (below); on Sony natives it holds still at rest while `pl[20..21]` jitters ±1, and on the first moving frame already reads the position the move ends at. **Body:** every frame its focus layer's current position is refreshed from `pl[2..3]`, as is a 0–0x77 position scale, and it feeds the 13-frame end-of-Drive fallback. For devices without the [in-frame trace](#pl3238-the-in-frame-position-trace) it is also the AF evaluation's per-frame position. See [what the body reads](#what-the-body-reads-from-the-position-fields). | Units **CERTAIN**; meaning **UNKNOWN**; body use **CERTAIN on the a7S III firmware** |
 | `pl[4]` | `00` on primes (SEL5518Z, Yongnuo) and adapters; `d0` / `a1` SEL55210 @55 / @210 mm, `05` SEL2870 @70 mm, `07` SELP1650. Equal to `pl[11]` on every lens but the SELP1650 (`22`). | **UNKNOWN** |
-| `pl[5]` | `10` on primes; `11` / `4c` SEL55210 @55 / @210 mm, `4f` SEL2870, `10` SELP1650; `00` on the Viltrox. Equal to `pl[12] + 0x10` on every Sony lens — an addition, not a bit set (`3c` → `4c`). Read as u16, `pl[4..5] = pl[11..12] + 0x1000` covers both rules except the SELP1650's `pl[4]`; no carry into `pl[5]` has been observed, so the u16 reading is untested. | **UNKNOWN** |
-| `pl[6]` | `0x10` on every device, adapters included. The SELP1650 adds a 2-bit counter in bits 5–6 that steps every frame (`10 30 50 70`). | **UNKNOWN** |
-| **`pl[7..8]`** | **u16 LE lower focus travel limit** | **CERTAIN** on the LM-EA9; PROBABLE generally |
+| `pl[5]` | `10` on primes; `11` / `4c` SEL55210 @55 / @210 mm, `4f` SEL2870, `10` SELP1650; `00` on the Viltrox. Equal to `pl[12] + 0x10` on every Sony lens — an addition, not a bit set (`3c` → `4c`). Read as u16, `pl[4..5] = pl[11..12] + 0x1000` covers both rules except the SELP1650's `pl[4]`; no carry into `pl[5]` has been observed, so the u16 reading is untested. **Body:** reads `pl[4..5]` as **one u16**. In one body mode a change of more than 256 raises its "zoom moving" flag, with the direction; in the other mode that flag follows 0x05's focal length instead. Separately, it marks `pl[4..5]` stable after 16 unchanged frames. This supports the u16 reading and a zoom position. | **UNKNOWN**; u16 read **CERTAIN on the a7S III firmware** |
+| `pl[6]` | `0x10` on every Sony native and every adapter observed. The SELP1650 adds a 2-bit counter in bits 5–6 that steps every frame (`10 30 50 70`). In the NEX-7 captures the Voigtländer 15 mm sends `0x10` only while its ring turns and `0x00` at rest, and the Loxia 21 sends `0x00`. **Body:** bit 4 = **this frame's position is valid**. For devices without the in-frame trace, a frame with it clear gets its neighbours' average position, and an adapter's in-frame interpolation needs it set three frames running. Not consulted on the trace path. | **UNKNOWN**; body use **CERTAIN on the a7S III firmware** |
+| **`pl[7..8]`** | **u16 LE lower focus travel limit** **Body:** treated as 0 for adapters. | **CERTAIN** on the LM-EA9; PROBABLE generally |
 | **`pl[9..10]`** | **u16 LE upper focus travel limit** | as above |
-| `pl[11..12]` | u16 LE. 0 on primes; on zooms it grows with focal length — SEL55210 464 @55 mm, 15521 @210 mm; SEL2870 16133 @70 mm (tele end); SELP1650 34. | **UNKNOWN**; zoom position **POSSIBLE** |
+| `pl[11..12]` | u16 LE. 0 on primes; on zooms it grows with focal length — SEL55210 464 @55 mm, 15521 @210 mm; SEL2870 16133 @70 mm (tele end); SELP1650 34. **Body:** interpolated onto each AF sample record together with `pl[2..3]`. | **UNKNOWN**; zoom position **POSSIBLE** |
 | `pl[13..14]` | u16 LE [defocus scale](autofocus.md#26-the-defocus-unit): Move mode 6 multiplies its operand by it. That it measures position counts per defocus unit at the current aperture is inferred from Yongnuo's per-aperture table. | Use by mode 6 **CERTAIN**; what it measures **PROBABLE** |
-| `pl[20..21]` | **Focus position NOW** — the current, un-forecast position. Cheaper EF-mount adapters report nothing here; native E-mount lenses do. | **CERTAIN** |
+| `pl[20..21]` | **Focus position NOW** — the current, un-forecast position. Cheaper EF-mount adapters report nothing here; native E-mount lenses do. **Body:** the final point of the in-frame trace. On the trace path these points are the AF evaluation's positions. | **CERTAIN**; body use **CERTAIN on the a7S III firmware** |
 | `pl[23]` | Bit 6 (`0x40`) flips once per body cycle: on the frame where [message 0x03](msg_0x03.md) `pl[11]` returns to 0, or every second frame when the cycle length `pl[10]` is 1. Other bits zero. | Flip rule **PROBABLE**; meaning **UNKNOWN** |
-| **`pl[25]`** | **Focus-drive status.** On the LM-EA9, stepped by the command state machines: `0x10` command accepted → `0x20` first stage done → `0x30` both stages done → `0x00` cleared when the machine goes idle. Zero in every idle observation, which is consistent — none contains a focus drive. | **CERTAIN** on the LM-EA9; meaning on other devices UNKNOWN |
+| **`pl[25]`** | **Focus-drive status.** On the LM-EA9, stepped by the command state machines: `0x10` command accepted → `0x20` first stage done → `0x30` both stages done → `0x00` cleared when the machine goes idle. Zero in every idle observation, which is consistent — none contains a focus drive. **Body:** reads bits 4–6 only and takes phase 3 (`0x30`) as "Scan finished" ([autofocus](autofocus.md#how-the-body-reads-pl25)). | **CERTAIN** on the LM-EA9; meaning on other devices UNKNOWN; body reading **CERTAIN on the a7S III firmware** |
 | `pl[26..27]` | u16 LE. Lens- and focal-length-dependent; no observation shows it changing with focus. See below. | Meaning **UNKNOWN** |
-| `pl[32..38]` | **The position trace within the previous frame.** Yongnuo latches the position at frame sync (`L0`) and samples it again at every eighth of the frame period (`L1`..`L7`); the next sync gives `L8`. `pl[32+k] = L(k+1) − L(k+2)` — **older minus newer**, one eighth of a frame each, newest last. Varies frame to frame on the SELP1650 (`66 7f 7f 7f 7f 7f 7b` → zeros); zero on all adapters. | **CERTAIN** on Yongnuo; PROBABLE that Sony's identical-shaped field is the same thing |
+| `pl[32..38]` | **The position trace within the previous frame.** Yongnuo latches the position at frame sync (`L0`) and samples it again at every eighth of the frame period (`L1`..`L7`); the next sync gives `L8`. `pl[32+k] = L(k+1) − L(k+2)` — **older minus newer**, one eighth of a frame each, newest last. Varies frame to frame on the SELP1650 (`66 7f 7f 7f 7f 7f 7b` → zeros); zero on all adapters. **Body:** rebuilds eight in-frame points from it, ending at `pl[20..21]`, and uses them as the AF evaluation's positions when 0x08 `pl[9]` low nibble is 4. See [the trace](#pl3238-the-in-frame-position-trace). | **CERTAIN** on Yongnuo; PROBABLE that Sony's identical-shaped field is the same thing; body reading **CERTAIN on the a7S III firmware** |
 | **`pl[39..40]`** | **Event appendix — present only in the 50-byte form.** `pl[39]` = event code, `pl[40]` = parameter. See below. In the 93-byte form this is `pl[84..85]`, and `pl[39..83]` is the [reserved block](#the-93-byte-form). | Transport **CERTAIN**; code semantics **UNKNOWN** — the vendors disagree on `0x1f` |
 
 ---
@@ -154,6 +154,11 @@ Yongnuo pulls it from a **second** event queue and special-cases `0x1f` there to
 Two independent implementations writing the same offset from a status/event source is good evidence
 `pl[25]` is a real protocol field, not a vendor scratch byte.
 
+**Confirmed from the body side.** The body queues every non-zero phase
+`(pl[25] >> 4) & 7`, so a value shown for one frame is not lost. Phase 1 marks a Scan accepted, and
+**phase 3 fires the AF layer's Scan-completion callback**; the `1F 00` appendix does not. Details are
+in [autofocus — how the body reads `pl[25]`](autofocus.md#how-the-body-reads-pl25). **CERTAIN on the a7S III firmware.**
+
 **Why nothing on the wire shows this:** every 0x06 frame observed is 48 bytes with `pl[25] = 0`,
 because the observations are init plus idle — no focus drive ever happens in them. **A 50-byte
 message 0x06 with a non-zero `pl[25]` is a specific, cheap thing to look for in any future AF
@@ -230,6 +235,131 @@ some states — a native does not *always* provide a forecast.
 
 ---
 
+## `pl[32..38]`: the in-frame position trace
+
+The seven bytes describe how focus moved **during the last frame**, at one-eighth-frame resolution:
+
+```
+frame sync n-1                                             frame sync n
+     |------|------|------|------|------|------|------|------|
+          s[0]   s[1]   s[2]   s[3]   s[4]   s[5]   s[6]   s[7] = pl[20..21]
+
+pl[32+k] = s[k] - s[k+1]        k = 0..6, signed, older minus newer
+```
+
+- **Body side.**
+  - The body inverts exactly that: `s[7] = pl[20..21]`, `s[k] = s[k+1] + pl[32+k]`.
+  - The result is stored as eight positions belonging to one frame.
+  - When the body has no trace to use, it fills the same eight slots by linear interpolation
+    between two frames' positions. That only makes sense if the slots are sub-frame points.
+  - When the sensor runs at 2× or 4× the lens frame rate, the body splits the eight points 4 + 4
+    or 2 + 2 + 2 + 2 across the sensor frames.
+  - The frame the eight points are filed under is two frames back, or one frame back when
+    [0x08 `pl[85]`](msg_0x08.md#pl85) bit 7 is set. A trace that is a frame earlier or later
+    than declared shifts every AF position by a frame of travel.
+- **On the wire.** If the bytes were a history across frames, each frame's array would be the
+  previous frame's array shifted by one. On the NEX-7 / SEL2870 capture that holds for 2 of 34
+  frame pairs, so it is not a history across frames.
+
+| Statement | Confidence |
+| --- | --- |
+| The body reconstructs eight in-frame points, older minus newer, ending at `pl[20..21]` | **CERTAIN on the a7S III firmware** |
+| Not a history across frames | **PROBABLE** (body code and one capture agree) |
+
+## What the body reads from the position fields
+
+Read from body firmware; not confirmed on the wire.
+
+**How the body takes the message apart.**
+- It splits 0x06 into fields: `0x40` = `pl[0..1]`, `0x41` = `pl[2..12]`, `0x42` = `pl[13..21]`,
+  `0x45` = `pl[32..38]`.
+- Once per frame it stores a snapshot of them, keeping 32 frames of history.
+- How the position fields are used then depends on the [lens type](lens_types.md):
+
+| Path | Condition | Examples |
+| --- | --- | --- |
+| **Native, trace** | 0x07 `pl[0] = 01`, and 0x08 `pl[9] & 0x0F = 4` (or the 0x3D flag) | Yongnuo 50 DF |
+| Native, no trace | 0x07 `pl[0] = 01`, any other 0x08 `pl[9]` | the NEX-7 capture's native (`pl[9] = 01`) |
+| Adapter | 0x07 `pl[0] = 02` (types 1 / 2 / 5) | stock LM-EA9, Viltrox |
+
+### Native device with the in-frame trace
+
+Per frame, the body does three things with the position fields:
+
+1. **Eight in-frame points.**
+   - `s[7] = pl[20..21]`, `s[k] = s[k+1] + pl[32+k]`.
+   - The eight points go into a time-stamped position ring, under the frame set by
+     [0x08 `pl[85]`](msg_0x08.md#pl85) bit 7 (see [the trace](#pl3238-the-in-frame-position-trace)).
+2. **The AF evaluation reads them.**
+   - It asks for the focus positions belonging to a run of frames and gets these points: up to
+     128 of them, 8 per frame.
+   - A device without the trace gives it at most 16, one per frame.
+   - So on this path, the in-frame trace is the AF evaluation's focus-position axis.
+3. **Each AF sample record gets two interpolated positions.**
+   - The body knows when each AF sample was exposed, as a fraction `w` of a frame.
+   - It stores `(1 − w)·previous + w·current`, once from `pl[2..3]` and once from `pl[20..21]`.
+   - Apart from a debug dump, no reader of these two copies was found.
+
+| Field | Native with trace: what the body does with it |
+| --- | --- |
+| `pl[20..21]` + `pl[32..38]` | The eight in-frame points: the AF evaluation's positions |
+| `pl[2..3]` | The focus layer's current position, refreshed every frame, and the input to the 13-frame end-of-Drive fallback ([autofocus §4.3](autofocus.md#how-the-body-reads-pl25)). It is not used as the AF position. Whether a forecast here matters depends on how the AF planner uses that current position, which was not traced. See [why `pl[2..3]` may run ahead](#why-pl23-may-run-ahead) |
+| `pl[7..8]`, `pl[9..10]` | Travel limits, both used |
+| `pl[0]` bit 6 / bit 5 | At the lower / upper end, ORed with the body's own check |
+| `pl[0]` other bits, `pl[1]`, `pl[6]` | Not consulted |
+| `pl[4..5]` | Zoom-movement detection, in one body mode |
+
+**What such a device has to get right.** `pl[20..21]` and `pl[32..38]` must describe the frame's
+real motion: one eighth of the frame period per step, ending at the frame sync. That is the time
+base the AF evaluation assumes. `pl[2..3]` should agree with them, because the body's current
+position comes from it.
+
+The eight points are produced only while the body's lens link is in its normal state and the
+async position message 0x41 is not in use. With 0x41, positions arrive through that message
+instead, up to 256 samples.
+
+### Why `pl[2..3]` may run ahead
+
+While focus moves, `pl[2..3]` runs ahead of `pl[20..21]` on both kinds of lens observed:
+- Yongnuo adds a one-frame forecast;
+- Sony natives jump straight to the end of the move.
+
+A plausible reason a body would want that:
+- The body plans each command from its current-position fields, which hold `pl[2..3]`.
+- The command reaches the lens a frame or two later.
+- If the body planned from where the lens *was*, a lens still moving could already be past the
+  start of the window it is given, and would have to reverse to reach it.
+- Planning from where the lens *will be* avoids that reversal.
+
+This is **POSSIBLE**, not traced:
+- The body's AF planner was not followed to where it reads the current position.
+- The one explicit "start computed from `pl[2..3]`" found is the adapter-only deferred Scan
+  below, and it runs with the lens at rest.
+
+So reporting ahead, never past the target, is worth keeping. But no body code yet shows that it is
+required, or how far ahead is best.
+
+### Differences on the other paths
+
+| Field | Native, no trace | Adapter |
+| --- | --- | --- |
+| AF evaluation positions | One per frame: that frame's `pl[2..3]`. If the 0x08 `pl[9]` low nibble is 2, `pl[20..21]` is used instead | One per frame: that frame's `pl[2..3]` |
+| `pl[6]` bit 4 | A frame with the bit clear gets its neighbours' average | Same. Also, the eight-point ring is interpolated from `pl[2..3]` only if the bit was set in the last three frames |
+| Eight-point ring | Linear interpolation of `pl[2..3]` between frames | As before, with the `pl[6]` condition |
+| `pl[32..38]` | Unused | Unused |
+| `pl[7..8]` | Used | **Treated as 0** |
+| `pl[0]` bit 6 | As native | For 0x08 `pl[9]` low nibble 2: bit 6 with bit 4 clear freezes the reported position |
+| `pl[2..3]` in a Scan | — | With 0x08 `pl[9]` low nibble 1, the body may defer a Scan: it first sends a Move, and once the lens has stopped it recomputes the Scan's start from `pl[2..3]` |
+
+| Statement | Confidence |
+| --- | --- |
+| The field split and the readers listed above | **CERTAIN on the a7S III firmware** |
+| The three paths and their conditions | **CERTAIN on the a7S III firmware** (see [lens types](lens_types.md)) |
+| The AF evaluation's sample count (16 / 128 / 256) | **PROBABLE** |
+| The two per-sample interpolated copies have no functional reader | **POSSIBLE**: the search covered the CPU-side code only |
+
+---
+
 ## The travel clamps are real limits, not just a report
 
 `pl[7..8]` and `pl[9..10]` are not advisory: at least one implementation clamps every commanded
@@ -280,6 +410,11 @@ autofocuses correctly, so the field is **not required for autofocus**.
 - **Viltrox** — the EF adapters report nothing in `pl[20..21]` and send `pl[0] = 0`.
 
 ## Open questions
+
+- Who reads the per-AF-sample interpolations of `pl[2..3]` and `pl[20..21]`, if
+  anything beyond a debug dump.
+- Whether the AF planner places commands relative to `pl[2..3]`, which would make reporting ahead
+  necessary rather than just harmless.
 
 - `pl[0]` bit 7 and the remaining bits.
 - The event code table. The two implementations disagree on `0x1F`, so no shared table is
