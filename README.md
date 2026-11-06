@@ -286,3 +286,11 @@ During init the body sorts every device into a **lens type**, native or one of t
 classes, from [message 0x07](docs/msg_0x07.md) `pl[0]` and the adapter sub-type. The type changes
 how the body re-checks the device, which optional fields it requests, and which focus positions its
 autofocus works from: [lens types](docs/lens_types.md).
+
+The **lens ID** in 0x07 `pl[9..10]` never makes a body refuse a lens, but its range decides how far
+the body trusts the rest of the init data. A third-party ID gets much of 0x07, 0x08, 0x09 and 0x3D
+overwritten with fixed values: [lens ID](docs/lens_id.md).
+
+After init the body decides whether autofocus may use the **full frame, the centre only, or
+neither**. A native with no entry in the body's own lens library gets the full range only if it
+declares a 0x3B file in [0x3D](docs/msg_0x3D.md) `pl[0]`: [AF range](docs/af_range.md).

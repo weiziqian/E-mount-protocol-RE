@@ -35,12 +35,15 @@ CERTAIN on the A7 IV firmware, except where marked.
 | Bits | Meaning |
 | --- | --- |
 | `pl[0..1]`, bit `n` | the lens has 0x3A/0x3B file `n` ([table](msg_0x3A.md#other-files--certain-on-the-a7-iv-firmware)) |
+| `pl[0] ≠ 0` | a native with no library entry gets the **full AF range**; `0` makes it centre-only ([AF range](af_range.md)) |
+| `pl[32]` bits 0–7 | any bit set: AF range class none ([AF range](af_range.md)) |
 | `pl[33]` bit 2 | [0x05](msg_0x05.md) `pl[54..55]` (coarse focus position) is valid |
 | `pl[33]` bit 4 | 0x05 field `12` is sent |
 | `pl[33]` bit 7 | 0x05 field `13` is sent |
 | `pl[34]` bit 2 | the [0x06](msg_0x06.md) in-frame position trace is used — a7S III firmware ([lens types](lens_types.md)) |
 | `pl[34]` bit 5 | 0x05 field `14` is sent |
 | `pl[35]` bits 4, 5 | 0x06 fields `49`, `4A` are sent |
+| `pl[49]` bits 4, 5 | the lens supplies a focus-drive speed calibration ([AF range](af_range.md#focus-drive-speed)) |
 | `pl[50]` bit 3 | 0x05 field `15` is sent |
 
 The field bits are copied into the body's [0x0A](msg_0x0A.md) request, so a lens that sets one
