@@ -256,11 +256,11 @@ PROBABLE, and worth remembering before assuming a fixed layout.
 | **[0x1B](docs/msg_0x1B.md)** | both | init | aperture command |
 | **[0x1D](docs/msg_0x1D.md)** | B→L | ? | probably a frame length, not an ID |
 | **[0x20](docs/msg_0x20.md)** | B→L | ? | probably a frame length, not an ID |
-| **[0x28](docs/msg_0x28.md)** | L→B | init | third carrier for the correction rows |
+| **[0x28](docs/msg_0x28.md)** | both | init | lens state at a still capture: subject distance, focal length (EXIF), rows |
 | **[0x2B](docs/msg_0x2B.md)** | both | init | adapter re-identification (adapters only) |
 | **[0x32](docs/msg_0x32.md)** | ? | ? | implemented but not advertised |
 | **[0x34](docs/msg_0x34.md)** | both | init | timed focus move, from the body's release sequence |
-| **[0x35](docs/msg_0x35.md)** | L→B | init | second carrier for the correction rows |
+| **[0x35](docs/msg_0x35.md)** | both | init | the same as 0x28 with long-form rows; the A7 IV picks it by 0x08 `pl[13]` / 0x3D `pl[33]` |
 | **[0x3A](docs/msg_0x3A.md)** | L→B | `0x03` | size of the 0x3B file |
 | **[0x3B](docs/msg_0x3B.md)** | L→B | `0x03` | paged optical file (pupil/vignetting table) |
 | **[0x3D](docs/msg_0x3D.md)** | both | init | the lens's 0x3A/0x3B file bitmap and optional-field bits; requested by later bodies |

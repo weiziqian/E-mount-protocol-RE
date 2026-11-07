@@ -88,8 +88,9 @@ and slot B at `[6..11]`.
 Each row of the table is a **pair**: the two halves share one slot A and carry two different slot
 Bs, one of [type 1](#34-byte-0-bit-7--the-row-type-flag--probable) and one of type 0. Message 0x05
 alternates between the halves frame by frame, which is what produces the wire observation that slot
-A holds still while slot B changes every frame. Messages 0x28 and 0x35 have only been observed
-carrying one half.
+A holds still while slot B changes every frame. Messages 0x28 and 0x35 carry one half, the parity-0
+one (Yongnuo firmware), and the A7 IV decodes their slot B only when it is a type-0 row
+([0x35](msg_0x35.md#slot-b)).
 
 So a body that samples only alternate frames of message 0x05 receives only one of the two
 quantities.
