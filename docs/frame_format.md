@@ -17,6 +17,12 @@ F0 | len_lo len_hi | class | seq | id | payload[len-9] | ck_lo ck_hi | 55
 
 The header is 6 bytes: start byte, 16-bit length, class, sequence, message ID.
 
+**A frame can hold more than one message.** Everything from `id` to the checksum is a run of
+messages, each an ID byte followed by its body, back to back. The receiver takes each message's
+length from a per-ID table, not from the frame. The lens uses this to put its replies after
+[message 0x06](msg_0x06.md#messages-that-follow-0x06-in-the-same-frame). CERTAIN on the A7 IV
+firmware.
+
 ---
 
 ## Checksum — CERTAIN

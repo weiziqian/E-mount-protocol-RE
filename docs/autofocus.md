@@ -20,7 +20,7 @@ The normal loop runs at the body's frame rate, about 60 Hz, four frames per cycl
 | Order | Dir | ID | Role in focusing |
 | --- | --- | --- | --- |
 | 1 | L→B | **[0x05](msg_0x05.md)** | **focus in physical terms**: subject distance, "in motion" flag, focus ring direction, lens switch (§4.4) |
-| 2 | L→B | **[0x06](msg_0x06.md)** | **focus servo status**: focus position (two fields), travel limits, moving/stopped, tail blocks |
+| 2 | L→B | **[0x06](msg_0x06.md)** | **focus servo status**: focus position (two fields), travel limits, moving/stopped; replies follow it in the same frame |
 | 3 | B→L | [0x03](msg_0x03.md) | body state; can carry records, but focus records have been observed only in 0x04 |
 | 4 | B→L | **[0x04](msg_0x04.md)** | **focus instructions**, as records |
 
@@ -87,7 +87,7 @@ skip exactly 13 bytes to reach the records.
 | **`0x22`** | 3 B | **Position → distance query** | Answer with the distance code of the position in `rec[1..2]` | **PROBABLE** |
 | **`0x2E`** | 3 B | **Distance → position query** | Answer with the position for the distance code in `rec[1..2]` | **PROBABLE** |
 | `0x2F` | 3 B | Row index | Optical-table row selection, not focus | Size **CERTAIN** |
-| `0x34` | 24 B | — | Unknown | Size **POSSIBLE** |
+| `0x34` | 24 B | — | Not sent in 0x04 by the A7 IV; 0x34 is a [frame of its own](msg_0x34.md). Yongnuo's walker skips it | Size **POSSIBLE** |
 | `0x4A` | 12 B | — | Unknown | Size **POSSIBLE** |
 
 A receiver has to know the size of every tag it may meet, because records carry no length field. It
@@ -365,13 +365,13 @@ cycle:
 | Focus in physical terms | 0x05 `pl[20..23]`, `pl[54]`, `pl[60]`, `pl[62]` | every frame (§4.4) |
 | Motion status | 0x06 `pl[0..1]`, `pl[2..3]`, `pl[20..21]` | every frame |
 | Scan status | 0x06 `pl[25]` | during a Scan |
-| Tail blocks | 0x06 `pl[39..]`, which lengthens the frame | once: when an instruction finishes, or to answer a query |
+| Reply messages | after 0x06 in the same frame | once: when an instruction finishes, or to answer a query |
 
 ### 4.1 Every frame: motion status in 0x06
 
 | Field | Content | Confidence |
 | --- | --- | --- |
-| `pl[0]` | `0x82` when the focus group is **at rest**. `0x02` while it is moving, or has only just stopped. Then bit 4 (`0x10`) is ORed in when the position is within `0x1F` counts of the lower limit, and bit 3 (`0x08`) when it is within `0x1F` counts of the upper limit. The body reads only bit 6 (at the lower end) and bit 5 (at the upper end), ORed with its own position-vs-limit check. | Near-limit bits **PROBABLE**; bit 7 = at rest **PROBABLE** (`0x82` is what native lenses send while idle); body reading **CERTAIN on the a7S III firmware** |
+| `pl[0]` | Status flags: bit 7 = **at rest**, bit 4 = at the lower end of travel, bit 3 = at the upper end. The body ORs bits 4 and 3 with its own position-vs-limit tests. See [`pl[0]` bit by bit](msg_0x06.md#pl0-bit-by-bit) | End bits **CERTAIN on the A7 IV firmware**; bit 7 = at rest **PROBABLE** |
 | `pl[1]` | Direction of travel: `0x00` stopped; `0x02` toward higher position values; `0x04` toward lower. The body's only reader of it is switched off. | **PROBABLE** (Yongnuo and TTArtisan firmware agree) |
 | `pl[20..21]` | u16 LE focus position **now**, latched at the frame sync; also the final point of the `pl[32..38]` trace | **CERTAIN** |
 | `pl[2..3]` | u16 LE focus position, same units as the travel limits. Which position is open — see [message 0x06](msg_0x06.md). The body refreshes its focus layer's current position from it every frame, and uses it as the AF evaluation's per-frame position for devices without the in-frame trace ([lens types](lens_types.md)). | Units **CERTAIN**; meaning **UNKNOWN** |
@@ -384,27 +384,31 @@ Taken together, these fields let the body follow a move in progress: where focus
 during the last frame, and whether it has come to rest. What one body actually reads is in
 [msg 0x06 — what the body reads](msg_0x06.md#what-the-body-reads-from-the-position-fields).
 
-### 4.2 The tail of 0x06: events and query answers
+### 4.2 Replies in the 0x06 frame
 
-The 0x06 payload is a 39-byte core followed by zero or more **tail blocks**, starting at `pl[39]`.
-Each block begins with a tag byte, in the same tag space as the 0x04 records:
+The lens answers instructions and queries with **separate messages placed after 0x06 in the same
+frame** ([message 0x06](msg_0x06.md#messages-that-follow-0x06-in-the-same-frame)). Each answer is a
+message whose ID is the ID of the record it answers, and its length is fixed by the body:
 
-| Block | Size | Content |
+| Reply | Length, ID included | Content |
 | --- | --- | --- |
-| Event | 2 B, or 4 B for `0x3C` | `code param [0x00 0x00]`: an instruction has finished (below) |
+| Finished instruction | 2 B, or 4 B for `0x3C` | `ID b [0x00 0x00]`: an instruction has finished (below) |
 | Query answer | 3 B | `0x22 lo hi` or `0x2E lo hi`: the answer to a query record (§2.5) |
 
 ```
-F0 | len | cls seq 0x06 | pl[0..38] | tail blocks, 0 or more | ck_lo ck_hi | 55
+F0 | len | cls seq | 06 pl[0..38] | reply messages, 0 or more | ck_lo ck_hi | 55
 ```
 
-At most one event is sent per frame. Query answers from one 0x04 are sent together in the next
-0x06. The order of an event and query answers within the tail differs between lenses, so a receiver
-must walk the tail by tag. PROBABLE.
+The body walks the frame message by message, taking each length from its per-ID table, so a reply of
+the wrong length breaks the rest of the frame. CERTAIN on the A7 IV firmware.
 
-#### Events
+At most one finished-instruction reply is sent per frame. Query answers from one 0x04 are sent
+together in the next frame. The order of the replies differs between lenses, which is harmless,
+because each one is found by its ID. PROBABLE.
 
-| Instruction | Appendix | Sent when | Confidence |
+#### Finished-instruction replies
+
+| Instruction | Reply | Sent when | Confidence |
 | --- | --- | --- | --- |
 | Move `0x1D` | `0x1D 0x00` | the lens has arrived at the (clamped) target, or was already there | **PROBABLE** |
 | Stop `0x1C` | `0x1C 0x01` | the lens has come to rest | **PROBABLE** |
@@ -414,15 +418,15 @@ must walk the tail by tag. PROBABLE.
 Rules:
 
 - **Only the latest instruction is answered.** An instruction that a newer one replaced before it
-  finished produces no appendix. The exception is a Drive: it has no end of its own short of the
+  finished produces no reply. The exception is a Drive: it has no end of its own short of the
   limit, so it is answered when the next instruction arrives. PROBABLE.
 - **A Scan's approach leg is not answered on its own.** Only the end of the sweep produces
   `0x1F 0x00`. PROBABLE.
-- **No appendix at all** means nothing finished since the previous frame. This is the 48-byte
-  frame, and every idle frame looks like this. CERTAIN.
-- If several events are waiting, they are sent **one per frame**, in order. PROBABLE.
+- **No reply at all** means nothing finished since the previous frame. This is a 48-byte
+  frame with nothing after 0x06, and every idle frame looks like this. CERTAIN.
+- If several replies are waiting, they are sent **one per frame**, in order. PROBABLE.
 
-The appendix is the lens's explicit "done". The motion status in §4.1 carries the same information
+The reply is the lens's explicit "done". The motion status in §4.1 carries the same information
 implicitly, because `pl[0]` returns to `0x82` once the lens is at rest.
 
 ### 4.3 During a Scan: the status byte `pl[25]`
@@ -437,11 +441,11 @@ one or two frames:
 | `0x30` | Sweep finished |
 | `0x00` | Idle again |
 
-About five frames after `pl[25]` returns to `0x00`, the appendix `0x1F 0x00` follows (§4.2).
+About five frames after `pl[25]` returns to `0x00`, the reply `0x1F 0x00` follows (§4.2).
 `pl[25]` stays `0x00` for Move, Stop and Drive.
 
 PROBABLE for the `0x10 → 0x20 → 0x30 → 0x00` sequence, which two implementations agree on. POSSIBLE
-for the one-or-two-frame holding and the five-frame delay before the appendix.
+for the one-or-two-frame holding and the five-frame delay before the reply.
 
 #### How the body reads `pl[25]`
 
@@ -479,7 +483,7 @@ Read from body firmware; not confirmed on the wire.
 | 3 | `0x30` | Scan state 2 → 0, then the AF layer's pending completion callback is fired, once |
 
 - **Phase 3 is the body's "Scan finished" signal.** The callback that ends the AF step is driven by
-  `pl[25]`, not by the `1F 00` appendix, which is handled on a separate path.
+  `pl[25]`, not by the `1F 00` reply, which is handled on a separate path.
 - A lens that never sends `0x30` leaves that callback pending.
 - Phase 1 sets the state to 2 unconditionally, so a stray `0x10` outside a Scan is not harmless.
   Keep `pl[25] = 0x00` for Move, Stop and Drive.
@@ -517,7 +521,7 @@ in units the body can use without knowing the lens:
 | `pl[23]` | Coarse subject distance, a signed byte ≈ −32 × dioptres (`0xFF` ≈ infinity) | **PROBABLE** |
 | `pl[54]` | Coarse focus position: message 0x06 position units from the infinity end ÷ 256, 0 near infinity | **CERTAIN** on Yongnuo; **PROBABLE** on Sony |
 | `pl[60]` | **Focus ring direction**, signed: `0x01` / `0xFF` while the ring is turned, `0x00` otherwise. Not set by body-commanded moves | **PROBABLE** |
-| `pl[62]` | A two-position switch on the lens, `0x01` or `0x03`; updated only while no focus move is running or pending. Which value is which position is **UNKNOWN** | **POSSIBLE** |
+| `pl[62]` | A two-position switch on the lens, `0x01` or `0x03`; updated only while no focus move is running or pending. Which value is which position is **UNKNOWN**. Bits 4 / 5, when they rise, make the body send message 0x2A / 0x29 and wait for 0x06 `pl[0]` bit 7 / `pl[1]` bit 0 ([details](msg_0x06.md#bit-7-and-messages-0x29--0x2a)) | Switch **POSSIBLE**; bits 4 / 5 **CERTAIN on the A7 IV firmware** |
 | `pl[32..43]` | The optical rows in slots A and B are chosen by the current focus position, as well as by aperture — see [the optical rows](optical_data.md) | **PROBABLE** |
 | `pl[81..82]` | Effective focal length, mm × 10, which changes with focus (focus breathing) | **PROBABLE** |
 
@@ -534,7 +538,7 @@ telling the body that focus never moves and its distance is unknown.
 | --- | --- | --- |
 | n | `1D` target T, mode 0 | 0x06: `pl[0] = 0x02`, `pl[1]` = direction; 0x05: `pl[22]` bit 6 set |
 | n+1 | (bare, or a revised `1D`) | still moving, or… |
-| n+k | (bare) | arrived: 0x06 `pl[0] = 0x82`, `pl[1] = 0x00`, `pl[20..21]` = T, **appendix `1D 00`**; 0x05 `pl[22]` bit 6 clear, `pl[20..21]` = the distance of T |
+| n+k | (bare) | arrived: 0x06 `pl[0] = 0x82`, `pl[1] = 0x00`, `pl[20..21]` = T, **reply `1D 00`**; 0x05 `pl[22]` bit 6 clear, `pl[20..21]` = the distance of T |
 
 **A Scan:**
 
@@ -544,7 +548,7 @@ telling the body that focus never moves and its distance is unknown.
 | Approach done, sweep launched | `pl[25] = 0x10`, then `0x20` |
 | Sweep across A–B at scan speed | `pl[20..21]` advances steadily; `pl[32..38]` show a constant velocity |
 | Sweep done | `pl[25] = 0x30`, then `0x00`, `pl[0] = 0x82` |
-| About five frames later | appendix `1F 00` |
+| About five frames later | reply `1F 00` |
 
 ---
 

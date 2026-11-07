@@ -3,7 +3,8 @@
 **Summary.** The lens ID is [message 0x07](msg_0x07.md) `pl[9..10]`, u16 LE. No value makes a body
 refuse a lens: the 0x07 aborts look only at `pl[0]` and `pl[4]`. But the ID decides **how far the
 body trusts the rest of the init data**. An ID in the third-party range makes the A7 IV overwrite
-much of what the lens sent in 0x07, 0x08, 0x09 and 0x3D with fixed values, narrow the set of
+much of what the lens sent in 0x07, 0x08, 0x09 and 0x3D with fixed values, mask parts of every
+0x05 and 0x06, narrow the set of
 messages it will use, and skip most of the 0x3A/0x3B files.
 
 **Source.** Everything below is read from the Sony A7 IV 6.02 camera-processor firmware and is
@@ -79,11 +80,41 @@ The indices are payload offsets; values are hex.
   ([AF range](af_range.md#focus-drive-speed)). The [AF range](af_range.md) decision still sees `pl[0]`
   as sent, and bit 0 of `pl[32]`.
 
-### [0x05](msg_0x05.md) and [0x06](msg_0x06.md), every frame
+### [0x06](msg_0x06.md), every frame
 
-Parts of the tagged sub-records of each status frame are masked or zeroed: records 3, 4, 5, 7, 8
-and 9 of 0x05, records 0x40–0x44 of 0x06. What those records are is UNKNOWN; a frame in the classic
-fixed layout is not known to carry them.
+Every received 0x06 is masked in place, before any reader sees it. Offsets assume the usual 39-byte
+payload.
+
+| Bytes | Becomes | What is lost |
+| --- | --- | --- |
+| `pl[0]` | `& 0x7F` | bit 7 |
+| `pl[1]` | `& 0x06` | everything but the direction bits |
+| `pl[4..5]` | `00` | the zoom position the body watches for movement |
+| `pl[6]` | `& 0x10` | everything but "position valid" |
+| `pl[16..19]` | `00` | UNKNOWN fields |
+| `pl[22]` | `00` | UNKNOWN field |
+| `pl[25]` | `& 0x73` | bits 3 and 7; the Scan phase in bits 4–6 survives |
+| `pl[26..31]` | `00` | `pl[26..27]`, which natives fill per focal length, and `pl[28..31]` |
+
+Kept as sent: the focus positions `pl[2..3]` and `pl[20..21]`, the travel limits `pl[7..10]`,
+`pl[11..15]`, `pl[23..24]` and the in-frame trace `pl[32..38]`. The body also never asks a
+third-party lens for 0x06 fields `0x48`–`0x4A`
+([0x0A](msg_0x0A.md#pl89-select-the-fields-of-message-0x06)).
+
+### [0x05](msg_0x05.md), every frame
+
+Masked the same way. Offsets are for the fields' usual positions.
+
+| Bytes | Becomes |
+| --- | --- |
+| `pl[19]` | `& 0xC1` |
+| `pl[22]` | `& 0xE0` |
+| `pl[44..53]`, `pl[56..57]` | `00`. Slots A and B (`pl[32..43]`) and `pl[54..55]` are kept |
+| `pl[62..64]` | `& 0x7B8003`, as one 24-bit value |
+| `pl[66]` | `& 0x33` |
+| `pl[67..68]` | `00` |
+
+The body also never asks a third-party lens for 0x05 fields `0x12`–`0x14`.
 
 ### Messages the body will use
 
@@ -109,6 +140,5 @@ stored value when the same lens comes back. Both bytes of the ID must be non-zer
 ## Open questions
 
 - What the main processor does with the E-mount entry.
-- What the 0x05/0x06 sub-records hold.
 - Whether other bodies classify IDs the same way. The a9 II autofocuses with third-party ID
   (`0xC540`, on the rebuilt LM-EA9 firmware), so at least nothing there depends on it fatally.

@@ -242,7 +242,7 @@ PROBABLE, and worth remembering before assuming a fixed layout.
 | **[0x03](docs/msg_0x03.md)** | B→L | normal | body status / command, per frame |
 | **[0x04](docs/msg_0x04.md)** | B→L | normal | body state and focus command, per frame |
 | **[0x05](docs/msg_0x05.md)** | L→B | normal | lens status + optical table transfer |
-| **[0x06](docs/msg_0x06.md)** | L→B | normal | focus range, focus position, event channel |
+| **[0x06](docs/msg_0x06.md)** | L→B | normal | focus range, focus position, drive status; replies follow it in the frame |
 | **[0x07](docs/msg_0x07.md)** | both | init | identity and lens ID |
 | **[0x08](docs/msg_0x08.md)** | both | init | the large descriptor |
 | **[0x09](docs/msg_0x09.md)** | both | init | "start up info"; adapter sub-type |
@@ -259,7 +259,7 @@ PROBABLE, and worth remembering before assuming a fixed layout.
 | **[0x28](docs/msg_0x28.md)** | L→B | init | third carrier for the correction rows |
 | **[0x2B](docs/msg_0x2B.md)** | both | init | adapter re-identification (adapters only) |
 | **[0x32](docs/msg_0x32.md)** | ? | ? | implemented but not advertised |
-| **[0x34](docs/msg_0x34.md)** | ? | ? | unknown; holds the 850 pair |
+| **[0x34](docs/msg_0x34.md)** | both | init | timed focus move, from the body's release sequence |
 | **[0x35](docs/msg_0x35.md)** | L→B | init | second carrier for the correction rows |
 | **[0x3A](docs/msg_0x3A.md)** | L→B | `0x03` | size of the 0x3B file |
 | **[0x3B](docs/msg_0x3B.md)** | L→B | `0x03` | paged optical file (pupil/vignetting table) |

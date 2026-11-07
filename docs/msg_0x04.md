@@ -62,8 +62,10 @@ The sizes are fixed per tag and account for every observed payload length exactl
 | 18 | 13 | `0x1D` |
 | 30 | 13 | `0x2F` + `0x1F` |
 
-`0x1C` also appears as an operation code in [message 0x06](msg_0x06.md)'s event appendix. Whether
-that is one instruction namespace shared across messages, or reuse of a byte value, is **UNKNOWN**.
+The records are messages in the ordinary message-ID space. The lens answers a finished `0x1C`,
+`0x1D`, `0x1F` or `0x3C` with a message of the same ID placed after
+[message 0x06](msg_0x06.md#messages-that-follow-0x06-in-the-same-frame) in its frame. CERTAIN on the
+A7 IV firmware.
 
 ## The focus target — the `0x1D` record
 

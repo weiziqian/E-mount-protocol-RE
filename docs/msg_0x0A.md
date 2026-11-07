@@ -2,8 +2,8 @@
 
 **Summary.** A 16-byte init-class exchange in which **the lens echoes the body's request exactly**.
 The last exchange of the init handshake. The request is more than an echo pattern: its first two
-bytes can **shorten [message 0x05](msg_0x05.md) to its 105-byte form**, and `pl[8]` selects the
-length of [message 0x06](msg_0x06.md). **The body chooses the request from the lens's own
+bytes can **shorten [message 0x05](msg_0x05.md) to its 105-byte form**, and `pl[8..9]` select the
+fields of [message 0x06](msg_0x06.md). **The body chooses the request from the lens's own
 [message 0x08](msg_0x08.md) `pl[13]`**, so it is not a fixed value.
 
 **Direction:** both. Body request 16 bytes; lens reply 16 bytes.
@@ -102,42 +102,37 @@ The A7 IV builds this form for natives and for adapters of sub-type `1`
 `pl[2]` bits 0–1 always accompany the long form; their own meaning is UNKNOWN. Further bits of
 `pl[2]` and `pl[9]` are taken from the lens's [message 0x3D](msg_0x3D.md) reply.
 
-## `pl[8]` selects the length of message 0x06
+## `pl[8..9]` select the fields of message 0x06
 
-In the same handler, Yongnuo sets the base length of [message 0x06](msg_0x06.md) from `pl[8]`, for
-the rest of the session:
+`pl[8]` bit `n` asks for [message 0x06](msg_0x06.md) field `0x40 + n`, and `pl[9]` bit `n` for field
+`0x48 + n`. The field table is in
+[message 0x06 — fields](msg_0x06.md#fields-and-which-the-body-asks-for). `3f` is fields
+`0x40`–`0x45`, the 39-byte payload `pl[0..38]`. CERTAIN on the A7 IV firmware.
 
-| Request `pl[8]` | Message 0x06 base frame length | Payload before the tail |
-| --- | --- | --- |
-| `7f` | **93** | `pl[0..83]`, 84 bytes |
-| anything else | **48** | `pl[0..38]`, 39 bytes |
+What the A7 IV sends:
 
-"Base" because message 0x06 also carries a per-frame tail (events, query answers) that adds to
-either length; the tail simply starts later in the 93-byte form. What the two forms contain is in
-[message 0x06 — the 93-byte form](msg_0x06.md#the-93-byte-form).
+| Byte | Value |
+| --- | --- |
+| `pl[8]` | `3f`, plus `80` (field `0x47`, 4 bytes) for a native lens whose [0x08](msg_0x08.md) `pl[12]` has bit 5 set. Bit 6 is never set |
+| `pl[9]` | bit 0 (field `0x48`) for an adapter that declares [0x5A](msg_0x5A.md); bits 1 and 2 (`0x49`, `0x4A`) from [0x3D](msg_0x3D.md) feature bits. None of them for a [third-party ID](lens_id.md#what-third-party-changes) |
+
+Yongnuo reads only one case, `pl[8] == 7f`, which adds field `0x46` (45 bytes) and gives the
+93-byte form ([message 0x06 — the 93-byte form](msg_0x06.md#the-93-byte-form)). Any other value
+gets the 48-byte form.
 
 Unlike the [message 0x05](msg_0x05.md) length, this one is chosen **by the body alone**: the lens
-declares nothing for it, and the body can select the longer form, not only the shorter.
+declares nothing for it.
 
-**Never observed.** Every body request recorded carries `3f`: about twenty 0x0A requests, checksums
+**Only `3f` observed.** Every body request recorded carries `3f`: about twenty 0x0A requests, checksums
 verified, from the A6000 (five lenses and adapters) and the NEX-7 (seven captures, five devices),
 and three from the Sony a9 II, including both forms above. The end-of-session `00 00` request carries `00`. Every message 0x06
-ever captured is 48 bytes long before its tail.
+ever captured has the 39-byte payload.
 
 | Aspect | Confidence |
 | --- | --- |
+| `pl[8..9]` is a field bitmap; what the A7 IV puts in it | **CERTAIN on the A7 IV firmware** |
 | Yongnuo selects 93 on `pl[8] = 7f`, 48 otherwise (three models, two separate code bases) | **CERTAIN** |
-| The value it sets is the 0x06 base length | **CERTAIN** — the 0x06 sender extends the payload by exactly that amount |
-| It is protocol behaviour that Sony lenses follow too | **POSSIBLE** — no body has been seen sending `7f`, so nothing on the wire bears on it either way |
-
-### The request is a field bitmap — CERTAIN on the A7 IV firmware
-
-`pl[0..7]` holds one bit per [message 0x05](msg_0x05.md#the-body-parses-0x05-as-numbered-fields--certain-on-the-a7-iv-firmware)
-field (bit `n` = field `n`), and `pl[8..15]` one bit per message 0x06 field (bit `n` = field
-`0x40 + n`). The body parses the lens's replies with exactly these fields. Its 0x06 field sizes
-explain Yongnuo's two lengths: `3f` = fields `40`–`45`, 39 bytes (frame 48); `7f` adds field `46`,
-45 bytes, giving 84 (frame 93). `pl[8]` bit 7 (field `47`) is set when 0x08 `pl[12]` bit 5 is, and
-`pl[9]` and further bits of `pl[2]` come from the lens's [message 0x3D](msg_0x3D.md).
+| A Sony lens builds the fields the same way | **POSSIBLE** — no body has been seen sending anything but `3f` |
 
 ## `00 00` at the end of the session
 
@@ -156,7 +151,7 @@ Yongnuo also has a third mode for `pl[0..1] = 40 00`. No body has been seen send
 
 ## Open questions
 
-- Whether any body sends `7f` in `pl[8]`.
+- Whether any body sends `7f` in `pl[8]`; the A7 IV does not.
 - What the a9 II requests for `pl[13]` values other than `0x81` and `0xe1`, and which bits of
   `pl[13]` it decides on.
 - What `pl[2] = 03` in the a9 II's `ff ff` request means.

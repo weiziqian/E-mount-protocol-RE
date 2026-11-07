@@ -89,7 +89,7 @@ With low nibble 2, the AF evaluation gets one point per frame, the trace's final
   and capability gating through the [0x01](msg_0x01.md) bitmap.
 - The 0x04 focus records (Move, Scan, Stop, Drive, queries), and how the body reads
   [0x06 `pl[25]`](autofocus.md#how-the-body-reads-pl25).
-- 0x06 `pl[0]` bits 6 / 5 (at the lower / upper end).
+- 0x06 `pl[0]` bits 4 / 3 (at the lower / upper end).
 - 0x06 `pl[4..5]` zoom-movement detection.
 - [0x08 `pl[85]`](msg_0x08.md#pl85) bit 7, the position-report latency.
 
