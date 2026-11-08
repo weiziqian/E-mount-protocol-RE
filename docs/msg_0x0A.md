@@ -136,10 +136,10 @@ ever captured has the 39-byte payload.
 
 ## `00 00` at the end of the session
 
-The NEX-7 sends a second 0x0A with an all-zero payload just before [message 0x16](msg_0x16.md), the
-shutdown request. Yongnuo treats `pl[0..1] = 00 00` as a mode of its own, separate from `ff xx`, and
-on it shuts down parts of the lens. So `00 00` is likely a "leaving the active session" signal that
-precedes the shutdown request. POSSIBLE.
+At power-off the body sends a 0x0A with an **all-zero payload** and waits for the reply before it
+sends [message 0x16](msg_0x16.md), the shutdown request. **CERTAIN** on the A7 IV firmware (its power
+state machine); the NEX-7 does the same on the wire. Yongnuo treats `pl[0..1] = 00 00` as a mode of
+its own, separate from `ff xx`, and on it shuts down parts of the lens.
 
 Yongnuo also has a third mode for `pl[0..1] = 40 00`. No body has been seen sending it.
 

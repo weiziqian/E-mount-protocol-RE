@@ -57,7 +57,7 @@ Ten contacts. Pins numbered left to right looking at a lens from the rear:
 | 4 | `BODY_VD_LENS` | Body→lens. Normally high, pulses low at low duty cycle at **60 Hz**. | CERTAIN (purpose PROBABLE: vertical-drive / frame sync — the main loop runs at this rate) |
 | 5 | `LOGIC_VCC` | 3.15 V logic supply; all data lines are 3.15 V logic | CERTAIN |
 | 6 | `LENS_CS_BODY` | Chip select, lens→body. High while `RXD` transfers. | CERTAIN |
-| 7 | `RXD` | Serial data lens→body | CERTAIN |
+| 7 | `RXD` | Serial data lens→body. At power-off the body waits for it to go low ([0x16](docs/msg_0x16.md)) | CERTAIN |
 | 8 | `TXD` | Serial data body→lens | CERTAIN |
 | 9 | `BODY_CS_LENS` | Chip select, body→lens. High while `TXD` transfers. | CERTAIN |
 | 10 | `LENS_XDETECT` | Pulled high by the body. **The Sony SEL55210 shorts it to ground; the Viltrox EF-NEX II grounds it through 680 Ω.** | CERTAIN (values); PURPOSE POSSIBLE — suspected native-vs-adapter detection, unproven |
