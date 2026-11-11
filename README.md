@@ -176,8 +176,44 @@ The same code shows where a body **ends the handshake** on the lens's answer:
 | [0x10](docs/msg_0x10.md) | `pl[0]` bit 0 set | wait — the lens is not ready |
 | [0x4E](docs/msg_0x4E.md) | `pl[0]` bit 0 set | leave the normal handshake |
 
-A separate, shorter sequence is used on wake from sleep; it has not been analysed. An adapter can
-also be re-identified mid-session with `0x0A` + [`0x2B`](docs/msg_0x2B.md).
+An adapter can also be re-identified mid-session with `0x0A` + [`0x2B`](docs/msg_0x2B.md).
+
+### Wake: the short sequence after 0x16
+
+After a [0x16](docs/msg_0x16.md) shutdown the body keeps what it learned about the lens
+(0x07, 0x08 and the rest) for as long as it believes the lens is still attached. The next power-on
+then runs a **shorter handshake** instead of the one above:
+
+```
+pin handshake (already at the fast speed)
+0B  09  0D  (10 | [54])  [53]  0A
+```
+
+- **No `0x01`, `0x07`, `0x0C`, `0x08`, `0x3F` or `0x3D`.** The body reuses its cached copies.
+- **The UART is already at the fast speed** before the pin handshake, and no 0x0C follows. The
+  speed is the fastest one the lens declared in [0x07](docs/msg_0x07.md) `pl[1]` that the body also
+  supports — taken from the declaration, not from the lens's 0x0C reply. A lens that declares
+  speed 1 must therefore come back from sleep at 1.5 Mbaud, without being told.
+- `[54]` replaces `0x10` when the lens declared 0x54; `[53]` is sent only when the lens declared
+  0x51, 0x52 and 0x53. Their contents have not been analysed.
+- A failed wake is handled like any failed handshake: the body retries, and the retry is a full
+  init from `0x01` at 750 kbaud.
+
+The body uses the short sequence when it powers the lens up again and has **not** seen it detached
+in between: `LENS_XDETECT` (pin 10) stayed low. Pin 10 going high, even briefly, clears the cached
+data, and the next power-on is a full init. Only a full reboot of the camera itself always starts
+from `0x01`.
+
+A lens that keeps no state across a 0x16 can force the full init by raising pin 10 at shutdown.
+A lens that does keep state (it sleeps instead of losing power) has to accept `0x0B` as the first
+frame, at the fast speed.
+
+| Claim | Confidence |
+| --- | --- |
+| Wake sequence and the speed taken from 0x07 `pl[1]` | **CERTAIN on the a7C II firmware** |
+| Speed taken from 0x07 `pl[1]` only if the lens also declared 0x0C | **CERTAIN on the a9 II firmware** |
+| Pin 10 high clears the cache, so the next power-on is a full init | **CERTAIN on the a7C II and a9 II firmware** |
+| Which power-on events actually take the short path (camera switched off and on, standby, auto power-off) | UNKNOWN; not captured |
 
 Two more conditions surround the message exchange:
 

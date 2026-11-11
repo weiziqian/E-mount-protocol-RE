@@ -42,6 +42,20 @@ and the handshake carries on. CERTAIN on the A7 IV firmware.
 
 Yongnuo ignores the request byte.
 
-## Open questions
+## Speed values
 
-- The baud rate of speed 2. No device has been seen to declare it.
+| Speed | Request `pl[0]` | Baud rate |
+| --- | --- | --- |
+| 0 | — (no 0x0C) | 750 kbaud |
+| 1 | `02` | 1.5 Mbaud |
+| 2 | `04` | **3 Mbaud** |
+
+CERTAIN on the a7C II firmware: its UART setter maps 0/1/2 to 750 000, 1 500 000 and 3 000 000.
+No device has been seen to declare speed 2.
+
+## On wake
+
+The [wake sequence](../README.md#wake-the-short-sequence-after-0x16) after a
+[0x16](msg_0x16.md) shutdown does not send 0x0C. The body sets its UART straight to the speed the
+lens declared in 0x07 `pl[1]` before the pin handshake. A lens that answered `00` here but declared
+speed 1 is therefore spoken to at 1.5 Mbaud on wake. CERTAIN on the a7C II firmware.

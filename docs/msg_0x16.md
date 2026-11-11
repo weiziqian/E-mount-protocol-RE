@@ -51,6 +51,27 @@ i.e. for the lens's UART to be idling.
 units, which also make the power-on handshake's two timeout settings equal (5000 × 400 and
 1000 × 2000, both 2 s).
 
+### After 0x16: the body keeps the lens — CERTAIN on the a7C II firmware
+
+There is no separate "sleep" message: standby and power-off both use 0x16. What differs is where
+the body parks afterwards:
+
+| Condition | Lens logic power | Next power-on |
+| --- | --- | --- |
+| system state `0xc05` (`pl[0] = 03`) | kept | wake sequence; if the state has meanwhile become `0xc06`, a native lens is woken and sent 0x16 again |
+| body controls lens power directly (a per-model setting) | **cut** | wake sequence |
+| otherwise | kept | wake sequence |
+
+In all three the body still treats the lens as attached and keeps its cached 0x07/0x08 data, so the
+next power-on runs the short
+[wake sequence](../README.md#wake-the-short-sequence-after-0x16): `0B` first, at the fast speed,
+with no 0x01. If `LENS_XDETECT` (pin 10) goes high in the meantime, the cache is cleared and the next
+power-on is a full init.
+
+A lens that loses power at shutdown restarts at 750 kbaud and cannot answer the wake sequence. The
+body retries with a full init, so the lens still comes up, one or more power cycles later.
+PROBABLE: follows from the firmware, not captured.
+
 ### Measured on a Sony a9 II
 
 | Lens behaviour after the request | Body |
@@ -84,7 +105,9 @@ sessions. The mechanism is UNKNOWN.
 
 ## Open questions
 
-- What system state `0xc05` (`pl[0] = 03`) is.
+- What system states `0xc05` (`pl[0] = 03`) and `0xc06` are. From the body's behaviour, `0xc05`
+  looks like a standby the camera may resume from and `0xc06` like the later move to fully off.
+  PROBABLE at best.
 - What the lens is expected to do on `pl[0]` bit 1, if anything.
 - Whether A6000-generation bodies use this message at all.
 
