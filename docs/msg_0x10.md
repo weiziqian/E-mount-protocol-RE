@@ -26,6 +26,15 @@ The A7 IV treats bit 0 set as "not ready" and **keeps waiting** in this step; bi
 handshake proceed to [message 0x0A](msg_0x0A.md). Every lens captured replies `00`. CERTAIN on the
 A7 IV firmware.
 
+The A7 IV sends the request **once** and does not repeat it, and in the 0x10 step it takes every
+reply that arrives. CERTAIN on the A7 IV firmware (`0x9945ca` sends, `0x3b1c4c` sub-state `0x1a`
+waits). Whether a body accepts a "ready" sent unprompted after a "not ready" is not established; a
+lens that is not ready can instead delay its single reply, as the SELP1650 does.
+
+No timeout was found for this wait. The init state machine starts no timer when it enters the 0x10
+step on a cold attach or a wake; its only 30000 timer belongs to other paths. PROBABLE on the A7 IV
+firmware: the detach/retry logic in `0x3b1068` was not traced.
+
 ## The request carries body-side state
 
 The same Sony A6000 sends `1f` to natives and `3f` to the Viltrox adapter. So by this point in the
@@ -58,4 +67,4 @@ An implementation must not treat a slow 0x10 reply as a failure.
 
 - What the individual request bits mean.
 - What the lens does during the ~1.3 s before replying.
-- Whether there is a timeout after which a body gives up.
+- Whether any body gives up on a slow 0x10 reply (none found on the A7 IV).
