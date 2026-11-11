@@ -522,7 +522,7 @@ in units the body can use without knowing the lens:
 | `pl[54]` | Coarse focus position: message 0x06 position units from the infinity end ÷ 256, 0 near infinity | **CERTAIN** on Yongnuo; **PROBABLE** on Sony |
 | `pl[60]` | **Focus ring direction**, signed: `0x01` / `0xFF` while the ring is turned, `0x00` otherwise. Not set by body-commanded moves | **PROBABLE** |
 | `pl[62]` | A two-position switch on the lens, `0x01` or `0x03`; updated only while no focus move is running or pending. Which value is which position is **UNKNOWN**. Bits 4 / 5, when they rise, make the body send message 0x2A / 0x29 and wait for 0x06 `pl[0]` bit 7 / `pl[1]` bit 0 ([details](msg_0x06.md#bit-7-and-messages-0x29--0x2a)) | Switch **POSSIBLE**; bits 4 / 5 **CERTAIN on the A7 IV firmware** |
-| `pl[32..43]` | The optical rows in slots A and B are chosen by the current focus position, as well as by aperture — see [the optical rows](optical_data.md) | **PROBABLE** |
+| `pl[32..43]` | The optical rows in slots A and B are chosen by the aperture; whether focus also selects them is open — see [the optical rows](optical_data.md) | Aperture **CERTAIN** on Yongnuo; focus **UNKNOWN** |
 | `pl[81..82]` | Effective focal length, mm × 10, which changes with focus (focus breathing) | **PROBABLE** |
 
 A device that sends `0x0700`, a frozen `pl[22] = 0x80`, `pl[60] = 0` and a constant `pl[23]` is

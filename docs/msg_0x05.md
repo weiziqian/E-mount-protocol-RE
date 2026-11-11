@@ -114,8 +114,8 @@ SELP1650    | A0 EA 70 49 1E 0F | E1 B9 12 A6 E1 F6 | ... 15 16 ... DE F2 B6 B9 
 | **`24..25`**, **`26..27`** | **Focal length** | Duplicated u16 LE pair, mm × 10. Wide/tele on a zoom, near-equal on a prime. [Table below](#focal-length) | **CERTAIN** |
 | `28..29` | **Minimum focus distance** | u16 LE [distance code](autofocus.md#25-the-distance-code): `384 + 64 × log2(MFD)`, MFD in metres. Fixed per lens. Observed: 256 SELP1650 (0.25 m), 272 Voigtländer 15 mm (0.30 m), 312 SEL2870 (0.46 m), 320 SEL5518Z (0.50 m), 384 SEL55210 (1.0 m) — each its rated minimum focus distance. 0 on the Loxia and both Viltrox adapters: not reported, and the field is optional | **CERTAIN** |
 | `30..31` | — | The A7 IV takes the smaller of this and a 12-bit limit of its own. An affine function of `pl[0..1]`, not independent. On the Voigtländer, `pl[0..1] − pl[30..31] = 5205` exactly across all 41 sampled values of a 461-frame observation. Zero on the LM-EA9, both Viltrox adapters and every Sony lens except the SEL2870 (345) and SEL55210 @210 (246) | **CERTAIN** |
-| **`32..37`** | **Optical row, slot A** | [Slot A](optical_data.md#4-slot-a--the-field-sampling-grid). Aperture-independent; changes only when the row index changes | Encoding **CERTAIN**; quantity **POSSIBLE** |
-| **`38..43`** | **Optical row, slot B** | [Slot B](optical_data.md#1-what-the-rows-carry). Alternates every frame between a type-1 and a type-0 row. Type 1 scales as `1/F`. **The A7 IV, for a native, decodes only type-0 rows (byte 0 bit 7 clear)** and keeps the last one through a type-1 frame | Encoding **CERTAIN**; `∝ 1/F` **CERTAIN**; type-0-only **CERTAIN on the A7 IV firmware** |
+| **`32..37`** | **Optical row, slot A** | [Slot A](optical_data.md#4-slot-a--shading): the shading (vignetting) curve, 0 on the axis; shrinks as the aperture closes | Encoding **CERTAIN**; shading **PROBABLE** |
+| **`38..43`** | **Optical row, slot B** | [Slot B](optical_data.md#5-slot-b). Alternates every frame between a type-1 and a type-0 row. Type 1 scales as `1/F`. **The A7 IV, for a native, decodes only type-0 rows (byte 0 bit 7 clear)** and keeps the last one through a type-1 frame | Encoding **CERTAIN**; `∝ 1/F` **CERTAIN**; type-0-only **CERTAIN on the A7 IV firmware** |
 | **`44..57`** | **Aperture descriptor** | Maximum and minimum aperture in a second encoding. [Section below](#the-aperture-descriptor-pl4459). The body field ends at `pl[57]` | Encoding **CERTAIN** |
 | `58..59` | **Adapter sub-type** | A field of its own. **`pl[59] & 3` is an adapter's sub-type**, read every frame ([message 0x2B](msg_0x2B.md)); with 0x08 `pl[8]` high nibble 2, `pl[59] > 0x1F` also selects a mode. `00` on the Sony natives, `01` on both Viltrox adapters (their 0x09 sub-type) | **CERTAIN on the A7 IV firmware**; Viltrox and Sony values on the wire |
 | `54..55` | Coarse focus position | **Read by the A7 IV only if [message 0x3D](msg_0x3D.md) `pl[33]` bit 2 is set.** `pl[54]` = the focus position counted from the infinity end, in [message 0x06](msg_0x06.md) position units, divided by 256; 0 at or past infinity. `pl[55]` zero. Yongnuo computes it from the current position and its infinity calibration, not from the target. Non-zero (`0x01`) on the SEL5518Z during its power-on sweep, zero once settled at infinity | **CERTAIN** on Yongnuo; **PROBABLE** on Sony |
@@ -128,7 +128,7 @@ SELP1650    | A0 EA 70 49 1E 0F | E1 B9 12 A6 E1 F6 | ... 15 16 ... DE F2 B6 B9 
 | `79` | Second index pair, byte 0 | `0x00` on every device measured. The A7 IV copies `pl[79..82]` and acts on none of them | **UNKNOWN** |
 | **`80`** | Second index pair, byte 1 | A 14-entry lookup on the row tag `pl[78]`. [Section below](#pl80-and-modern-body-compatibility). **Not read by the A7 IV** | Lookup **CERTAIN** |
 | **`81..82`** | **Effective focal length** | mm × 10, the focal length corrected for focus breathing, in the same units as `pl[24..25]`. On the Voigtländer, nominal 150, this field walks 154 → 163 as focus moves far → near. On Yongnuo the value at infinity equals that lens's own `pl[24..25]` — 358 on the YN35, 514 against 512 on the YN50 DF. Zero on every Sony lens, both Viltrox adapters and the LM-EA9 | **PROBABLE**; whether Sony uses the field at all **UNKNOWN** |
-| **`83..88`** | **Optical row, slot C** | [Slots C and D](optical_data.md#8-slots-c-and-d). A strict function of `pl[77]` on the SEL2870; carries null rows on some devices | Lookup **CERTAIN**; whether it carries per-index data is device-dependent |
+| **`83..88`** | **Optical row, slot C** | [Slots C and D](optical_data.md#6-slots-c-and-d): the row numbered `pl[77]`. Row 0x15 behaves as distortion; null rows on some devices | Lookup **CERTAIN**; meaning **POSSIBLE** |
 | **`89..94`** | **Optical row, slot D** | Round-robin retransmission of rows also seen in slots A, B and C | **PROBABLE** |
 | `83..107` | Slot C/D record | Yongnuo stores this range as one 25-byte record. **The body reads separate fields** (table above): slots C/D, `pl[95]`, and in the long form `pl[96..101]`, `pl[102..104]`, `pl[105..107]`. In the long form a row is 9 bytes. The 6-byte row is extended by 3: `pl[96..98]` for slot A, `pl[102..104]` for slot C, `pl[105..107]` for slot D | Yongnuo layout **CERTAIN**; body fields **CERTAIN on the A7 IV firmware**; which extension goes with which row **PROBABLE** |
 | `95` | **An aperture value** | The A7 IV converts it to an [aperture value](aperture_value.md) `0x1A00 − 256·log2(pl[95])`, that is **f-number = 32/√`pl[95]`**; `0` means none. Sony's `0x11` → f/7.8, Yongnuo's and the SEL5518Z's `0x02` → f/22.6. What the aperture is (an f/8-type AF limit?) is **UNKNOWN**. Does not track the row index: the SEL2870 holds `0x11` across all 109 frames while slots C and D cycle. Observed: `0x11` SELP1650 / SEL55210 / SEL2870, `0x02` SEL5518Z and both Yongnuo lenses, `0x00` Voigtländer, Loxia, both Viltrox adapters and the LM-EA9. On the SELP1650 and SEL5518Z it is `0x00` in the first status frame — the one whose row index is still `00 00` — and takes the lens's value from the second frame on | Conversion **CERTAIN on the A7 IV firmware**; meaning **UNKNOWN** |
@@ -168,10 +168,8 @@ that populates one and not the others is inconsistent.
 
 Encoding, per-slot meaning and all sample data: **[the 6-byte optical rows](optical_data.md)**.
 
-Slot B's aperture behaviour is established: its type-1 row scales by exactly `1/√2` per stop over
-five stops, and its first point is the on-axis value, `value[0] × F ≈ 0.100` on seven lenses from
-15 mm to 210 mm and f/1.8 to f/5.6 across three manufacturers. Its remaining four points spread out
-wide open and collapse one stop down.
+In short: slot A is a shading curve, slot B type 0 a pupil-magnification curve, slot B type 1
+scales as `1/F` (and the A7 IV does not read it), and slot C/D row 0x15 behaves as distortion.
 
 Two lenses that cannot autofocus at all — the Voigtländer 15 mm and the Zeiss Loxia 21 mm —
 populate the rows richly, so this is not autofocus-only data.
@@ -324,7 +322,7 @@ split is by lens-ID class.
 | TECHART LM-EA9, Viltrox EF adapters | `00 00 00 00 00 00` | `26 00 00 00 00 00` | `00 00`, **static** | `00` | zeros |
 
 The adapters' slot B is a **valid row with null data**, tag `0x26` and five zero bytes, decoding to
-a flat 1.500. See [the null rows adapters send](optical_data.md#7-the-null-rows-adapters-send).
+a flat 1.500. See [what zero and default rows mean to the body](optical_data.md#7-what-zero-and-default-rows-mean-to-the-body).
 
 ---
 

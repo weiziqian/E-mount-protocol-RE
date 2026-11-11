@@ -15,8 +15,8 @@ identical for every lens; the lens reply is **201 bytes**.
 
 | Field | Meaning | Confidence |
 | --- | --- | --- |
-| **`pl[0..1]`** | **Maximum aperture** (smallest f-number), u16 LE [aperture value](aperture_value.md) — e.g. `c0 11` = f/1.8 | **PROBABLE** |
-| **`pl[2..3]`** | **Minimum aperture** (largest f-number), same encoding — e.g. `00 19` = f/22 | **PROBABLE** |
+| **`pl[0..1]`** | **Maximum aperture** (smallest f-number), u16 LE [aperture value](aperture_value.md) — e.g. `c0 11` = f/1.8. The A7 IV's aperture limit for a native lens; it builds the wide-open command in [0x03](msg_0x03.md) from it | **CERTAIN on the A7 IV firmware** |
+| **`pl[2..3]`** | **Minimum aperture** (largest f-number), same encoding — e.g. `00 19` = f/22. The A7 IV's other limit for a native lens | **CERTAIN on the A7 IV firmware** |
 | `pl[6..7]` | u16 — possibly a focus limit; `0x8000` on native AF lenses | POSSIBLE |
 | **`pl[9]`** | **The low nibble selects which focus positions the body's AF evaluation uses** (native devices). `4` → the in-frame trace in [0x06](msg_0x06.md) `pl[20..21]` + `pl[32..38]`, 8 points per frame. `2` → `pl[20..21]`, one point per frame. Anything else → 0x06 `pl[2..3]`, one point per frame. Observed `01` on a native (NEX-7 capture), `14` on the Yongnuo 50 DF, `02` on the stock LM-EA9. [Below](#pl9-low-nibble-selects-the-focus-position-source) | **CERTAIN on the a7S III firmware**; values **CERTAIN** |
 | **`pl[13]`** | **Declares the [message 0x05](msg_0x05.md) length.** `(pl[13] & 0xFE) == 0x80` → 105 bytes, anything else → 117 bytes, before the body's [message 0x0A](msg_0x0A.md) can shorten it. **Also tracks the image format**: bit 5 (`0x20`) is set on every full-frame device and clear on every APS-C one, and clearing it confined a Sony a9 II's AF area to the APS-C region. With bit 6 as well (`& 0x60 == 0x60`), the A7 IV requests [0x35 instead of 0x28](msg_0x28.md#0x28-0x35-or-0x50--which-one-the-body-asks-for) at a capture. [Below](#pl13-declares-the-message-0x05-length) | Length rule **CERTAIN** in Yongnuo firmware, **PROBABLE** as protocol; format observation **CERTAIN**, its meaning **POSSIBLE** |

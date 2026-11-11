@@ -17,7 +17,7 @@ quantises in thirds of 256" means.
 | --- | --- | --- | --- | --- |
 | **[0x05](msg_0x05.md)** | L→B | `pl[0..1]`, and an identical second copy at `pl[2..3]` | **The lens's current aperture**, once per 60 Hz frame | **CERTAIN** |
 | **[0x05](msg_0x05.md)** | L→B | `pl[44..59]` — the **aperture descriptor** | **Maximum and minimum aperture**, in a *different* encoding. [Section 3](#3-the-other-aperture-encoding-and-the-proof) | **CERTAIN** |
-| **[0x08](msg_0x08.md)** | L→B | `pl[0..1]`, `pl[2..3]` | **Maximum and minimum aperture**, sent once at init | **PROBABLE** |
+| **[0x08](msg_0x08.md)** | L→B | `pl[0..1]`, `pl[2..3]` | **Maximum and minimum aperture**, sent once at init. The A7 IV uses them as the aperture limits; for an adapter it replaces them every frame with the 0x05 descriptor | **CERTAIN on the A7 IV firmware** |
 | **[0x1B](msg_0x1B.md)** | B→L | `pl[0..1]` | **The body's aperture command.** The reply echoes the requested value back | **PROBABLE** |
 | **[0x03](msg_0x03.md)** | B→L | `pl[5..6]` | A commanded aperture, every frame. At least one lens clamps it to its own range before use | **PROBABLE** |
 | **[0x03](msg_0x03.md)** | B→L | `pl[3..4]` | A second value on the same grid | **UNKNOWN** |
@@ -248,15 +248,13 @@ The 6-byte optical rows carried by messages [0x05](msg_0x05.md), [0x28](msg_0x28
 [0x35](msg_0x35.md) are fetched with this value as the **index**: `record = table[f(value), parity]`.
 See **[the optical rows](optical_data.md)**.
 
-That index being the aperture, rather than focus, resolves a regularity `optical_data.md` records as
-unexplained. Slot B type 1 is `value[0] = C/F`, and its decoded `value[0]` is **linear in the table
+That index being the aperture, rather than focus, explains a regularity of slot B type 1.
+Slot B type 1 is `value[0] = C/F`, and its decoded `value[0]` is **linear in the table
 index**, the mantissa falling by exactly 48 per bucket. If the index is blade position then
 `1/F ∝ blade position`, i.e. **pupil diameter linear in blade travel** — which is what an iris
 mechanically is.
 
-> **Warning.** `optical_data.md` has not yet been re-derived against this correction. Every table in
-> it labelled "focus bucket" is an aperture bucket, and its section 6.4 refutation — *"13–20× too
-> fast for `F_eff = F·(1+m)`"* — was measuring the wrong axis.
+`optical_data.md` has been re-derived against this: its tables are labelled by aperture.
 
 ---
 
