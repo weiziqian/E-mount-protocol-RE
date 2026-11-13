@@ -51,7 +51,10 @@ A 16-byte header followed by three chunks and a check word. Every chunk has an 8
 
 The A7 IV's parser also accepts the tags `EO` and `SO`, and skips any tag it does not know. It stops
 once it has read as far as the `LF` length counts from the start of the file, which falls before the
-check word. CERTAIN on the A7 IV firmware.
+check word. CERTAIN on the A7 IV firmware. The a7C II parser does the same, in its main application,
+and treats an `LF` header with a zero header size or zero length as an error. It compares each tag
+as a u16 LE against `0x454F` and `0x534F`, which are the byte strings `OE` and `OS`; the A7 IV's
+`EO`/`SO` are probably the same two values read in the other byte order.
 
 ### The check word
 
@@ -73,6 +76,15 @@ still send the right value; a later body may check it.
 - **`Nf` values of a second axis**, increasing, always ending in `0x700`. A 50 mm lens has 8 or 9 of
   them and a 17 mm lens has 4, so the axis is **probably focus position**. That is POSSIBLE.
 
+The body reads the header as three counts, `n0` (the `1`), `Nf` and `Na`, followed by `n0 + Nf +
+Na` axis values. The fourth header word, `00 00`, is therefore the one value of the `n0` axis, not
+padding. CERTAIN on the a7C II firmware.
+
+**The aperture axis counts stops down from wide open.** The body's key for it is the current
+aperture minus the lens's maximum aperture, in aperture-value counts. Row 0 is wide open whatever
+the lens's maximum is. CERTAIN on the a7C II firmware. This fits the files: column 0 of type 1 starts
+at the lens's own maximum aperture and climbs `0x55` per row.
+
 ### The table (`ED`)
 
 **Layout — CERTAIN, it parses all five files exactly.** An 8-byte header of four u16, then `Na × 3`
@@ -84,9 +96,27 @@ blocks:
 | block | u16 `1`, u16 `R` (number of focus segments), u16 `0`, u16 `0`, `R − 1` u16 focus breakpoints, then `R` rows of `Nh` u16 |
 | block order | aperture-major: three blocks (types 0, 1, 2) for aperture 0, then three for aperture 1, … |
 
-A row holds for the focus indices from its breakpoint up to the next one. The last segment always
+The body reads a block as a general sparse 2-D grid: u16 `nA`, u16 `nB`, then `nA` indices on
+the header's second dimension (the `1`), then `nB` focus indices, then `nA × nB` rows of `Nh` u16,
+focus-major. Every observed file has `nA = 1` with index `0`, which is the `1, R, 0, 0, …` layout
+above; the focus indices are `0` followed by the `R − 1` breakpoints. CERTAIN on the a7C II
+firmware.
+
+**Between breakpoints the body interpolates.** It expands every block into a dense grid of
+`Na × Nf × (header 1)` cells and fills the focus indices between two given rows linearly, in 1/256
+steps, rounded. A row is therefore exact only at its own breakpoint, and a two-segment file means a
+straight ramp from focus index 0 to `Nf − 1`. CERTAIN on the a7C II firmware. The last segment always
 starts at `Nf − 1`, so the end of the focus axis (`0x700`) has a row of its own. Most files use two
-segments, one for every other focus position and one for that end. The Yongnuo 35 uses up to four.
+segments. The Yongnuo 35 uses up to four.
+
+What the a7C II keeps — CERTAIN on the a7C II firmware:
+
+- Each grid cell is 24 bytes: the type 0 row, then the type 1 row, 12 bytes each. A row longer than
+  6 values does not fit.
+- Type 0 is interpolated as signed, type 1 as unsigned.
+- **Type 2 is parsed and dropped.** The body steps over each type 2 block without storing it.
+- An `OE` chunk is read the same way with only two blocks per aperture (types 0 and 1). The body
+  records which of `ED` and `OE` it has received as two separate flags.
 
 **Meaning — POSSIBLE.** The readings below fit every file, but the columns have not been tied to
 anything:
@@ -94,7 +124,9 @@ anything:
 - **Types 1 and 2 are the two edges of the pupil, and the six columns run from the image centre to
   the edge.** In column 0 the two types agree to within 1 in three of the five files, and nearly
   everywhere in the other two (to within 3 in 95 % and 88 % of rows). They separate after column 0.
-  That is what the pupil does: it is symmetric on axis and loses symmetry off axis.
+  That is what the pupil does: it is symmetric on axis and loses symmetry off axis. The a7C II
+  drops type 2, though, and reads type 1 as an effective f-number
+  ([below](#what-the-body-computes-from-it--certain-on-the-a7c-ii-firmware-unless-marked)).
 - **Type 1 shows mechanical vignetting.** Its outer columns hold a fixed value at wide apertures and
   only start to rise once the aperture is smaller than that value. The lens barrel limits the off-axis
   beam until the iris becomes the smaller stop. Type 2 rises slowly toward the edge, or not at all.
@@ -115,6 +147,58 @@ TTArtisan 50/1.8, type 1, `0x700` end, the first rows (decimal):
 
 If this reading holds, the file is the per-lens pupil data that on-sensor PDAF needs away from the
 frame centre.
+
+### What the body computes from it — CERTAIN on the a7C II firmware, unless marked
+
+Each time the body passes lens parameters to its phase-detect library, it looks the grid up as
+follows.
+
+- **Aperture:** linear interpolation, in 1/65536 steps, between the two aperture rows around the
+  key. The key is the stop-down amount described above. Below row 0 the body uses row 0, and above
+  the last row it uses the last row.
+- **Focus:** no interpolation at lookup. The body takes the first focus-axis entry greater than its
+  focus key, or the last entry. The key is a lens-state value that PROBABLY uses the same 0–`0x700`
+  distance code as [0x34](msg_0x34.md) mode 3.
+- **`n0` axis:** the same first-greater rule, keyed by another lens-state value, probably focal
+  length (POSSIBLE).
+
+The result is two 6-value arrays, one for type 0 and one for type 1. The body uses them like this:
+
+- **Type 1 is the effective f-number at each column**, on the aperture-value scale without its
+  offset. Column 0 plus `0x1000` is passed on as the effective aperture. When the body has no file it
+  fills all six with the current aperture, which is what a lens without vignetting would give.
+- **Type 0 picks the sensor's phase-detect pupil setting.** The body takes column 2 or column 3 of
+  type 0 (which one depends on the sensor mode) and compares it with a per-body calibration table to
+  choose one of several pupil indices. It also passes the value on together with `0x80000 / value`.
+  Choosing among several pupil settings matches sensors whose phase-detect pixels come in sets
+  designed for different exit-pupil distances. So type 0 is PROBABLY an exit-pupil distance per image
+  height, which agrees with "barely changes with aperture" above.
+- **Type 2** is not stored, so it plays no part.
+
+### Example: Yongnuo 50 DF at f/1.8
+
+![Yongnuo YN50mm f/1.8S DF, 0x3B file at f/1.8](img/msg_0x3B_yn50df_f1.8.png)
+
+This is the wide-open aperture row of the Yongnuo 50 DF file, expanded and looked up the way the
+a7C II does it ([above](#what-the-body-computes-from-it--certain-on-the-a7c-ii-firmware-unless-marked)).
+The file gives two rows per type, at focus index 0 and at index 7; the body interpolates the six in
+between.
+
+- **Focus axis.** The axis is `312 322 336 356 376 414 478 1792`. Read as
+  [distance codes](autofocus.md#25-the-distance-code), the edges are 0.46, 0.51, 0.59, 0.74, 0.92,
+  1.38 and 2.77 m, then ∞; `0x700` is the top of that code's range. In 1/D the steps are nearly even, about 0.3 dioptre each, so the cells are
+  spaced evenly in focus extension. The cell from 2.77 m to ∞ is about 0.9 mm of extension, the
+  same as the others. Reading the axis as distance codes is PROBABLE.
+- **Type 1.**
+  - Column 0 is f/1.90 at the near end and f/1.68 at ∞.
+  - Column 5 is f/3.58 at the near end and f/3.92 at ∞.
+  - All focus rows cross near f/2.95 at column 4.
+  - The ∞ value at column 0 is brighter than the lens's f/1.8 marking.
+- **Type 0.**
+  - Columns 0 and 1 stay near 720 at every focus distance. The value rises from column 2 outward.
+  - Columns 2 and 3, the ones the body uses, fall with distance: from 768 to 739 and from 797 to
+    748.
+  - The units are UNKNOWN.
 
 ## Effect on the body
 
@@ -155,7 +239,10 @@ format (same chunks, version `0b`), but no Sony lens has been seen serving one.
 
 - Which other bodies depend on it, and what AF-S uses instead. No captured lens asserts 0x3A/0x3B,
   so no capture could show the request.
-- Whether the columns are image heights, and which ones; what type 0 is; the zero point of the
-  scale.
-- The `1` in the `ED` header (one zoom position, on a prime?) and the two zero words in each block.
-- The `LC` values; what the `EO` and `SO` chunks hold.
+- Whether the columns are image heights, and which ones; the units of type 0.
+- The `1` in the `ED` header. It is a third grid dimension to the body, probably focal length, and
+  the two zero words in each block are its index list.
+- The `LC` values; what the `OE` and `OS` chunks hold.
+- What the phase-detect side does with the other four type-0 columns and five type-1 columns.
+  The lookup keeps all twelve values, but only the uses above have been traced.
+- Why the a7C II drops type 2, and whether other bodies use it.
