@@ -38,8 +38,8 @@ adapter form drops is the `2F` + index tail at `pl[20..22]`, nothing else.
 | Field | Meaning | Confidence |
 | --- | --- | --- |
 | `pl[0..1]` | u16 LE. Takes body-side values (`0x399C` = 14748, `0x2EBB` = 11963, `0x1A2C` = 6700 on an A6000; `0x3D6C` = 15724, `0x31F6` = 12790 on an a9 II). **The same values appear across two different lenses**, so it is body state, not lens data. Changes every frame. | UNKNOWN |
-| `pl[3..4]`, `pl[5..6]` | **u16 LE pair, both [aperture values](aperture_value.md).** `pl[5..6]` is the aperture the body is asking for. `pl[3..4]` is `0x1000` = 4096 = f/1.0 in the first frame of a session and equal to `pl[5..6]` in every frame after it. | Both are apertures **CERTAIN**; what distinguishes the two fields **UNKNOWN** |
-| `pl[7]` | `0x94` at start of session, `0x1C` thereafter. Holds on both bodies. | UNKNOWN |
+| `pl[3..4]`, `pl[5..6]` | **u16 LE pair, both [aperture values](aperture_value.md).** `pl[5..6]` is the aperture the body is asking for. `pl[3..4]` is `0x1000` = 4096 = f/1.0 in the first frame of a session and equal to `pl[5..6]` in every frame after it. `pl[3..4]` is the body's iris drive target; `pl[5..6]` is a second target that the body updates only in one exposure-control state and otherwise holds. [Below](#where-the-body-takes-the-aperture-pair-from) | Both are apertures **CERTAIN**; sources **CERTAIN on the a7C II firmware**; what the exposure state means **UNKNOWN** |
+| `pl[7]` | `0x94` at start of session, `0x1C` thereafter. Holds on both bodies. **Bit 7 selects the live aperture field**: set → `pl[5..6]`, clear → `pl[3..4]`. Bits 2, 3 and 4 are three further exposure-control flags, meaning UNKNOWN | Bit 7 **CERTAIN on the a7C II firmware**; other bits UNKNOWN |
 | `pl[10]`, `pl[11]` | **Body cycle**: `pl[10]` is the cycle length N in frames, `pl[11]` the frame within it, 0…N−1. The lens follows it in [message 0x06](msg_0x06.md) `pl[23]`. | **PROBABLE** |
 | `pl[12]` | 0 or 1 | UNKNOWN |
 | `pl[15]` | `02` or `03` | UNKNOWN |
@@ -75,6 +75,32 @@ encoding — in the first message 0x03 frame of a session, in all five sessions 
 `pl[5..6]` in every one of the 840 frames after it. In the one session where `pl[5..6]` changed
 between the first and second frames, from 5224 to 5470, `pl[3..4]` took 5470 immediately rather than
 the earlier value. What the field is for is **UNKNOWN**.
+
+### Where the body takes the aperture pair from
+
+CERTAIN on the a7C II firmware, unless marked.
+
+The body assembles message 0x03 each frame from fillers registered by three subsystems. The
+exposure-control filler writes `pl[0..7]`, from a per-frame snapshot of the exposure-control state:
+
+| Field | Source |
+| --- | --- |
+| `pl[3..4]` | **The iris drive target.** Exposure control sets it with a mode and a value; mode 0 means "drive the iris to this value". It starts at `0x1000` (f/1.0) with a non-drive mode, which is the first-frame value above. Auto-exposure mostly sets it to its live-view iris target, never wider than the lens's maximum aperture |
+| `pl[5..6]` | A second target, updated only while auto-exposure is in one particular state (meaning UNKNOWN) and held otherwise. It also starts at `0x1000`. A body-side override can replace it, and then forces `pl[7]` bit 7 on |
+| `pl[7]` bit 7 | Which of the two is live, see the field map |
+
+In another AF mode the body writes one computed value to both `pl[3..4]` and `pl[5..6]`.
+
+**This is how the body drives the iris of a native lens in live view.** For a lens that supports the
+asynchronous iris message, the body copies the live field (`pl[5..6]` if `pl[7]` bit 7 is set, else
+`pl[3..4]`) into [message 0x51](msg_0x51.md) every frame. A third-party lens never gets 0x51, so for
+it message 0x03 is the only place the value appears between captures.
+
+Whether the live field equals the user's chosen exposure aperture at all times is **UNKNOWN**. It is
+the target for the iris *during live view*. Auto-exposure decides when that is the chosen aperture
+and when it stays wider, for example for focusing. Every capture on record shows the lens's maximum
+aperture, so captures cannot yet tell those apart. The exposure aperture of a capture is sent in
+[message 0x1B](msg_0x1B.md) or 0x51 at the release.
 
 `pl[14..15]` of [message 0x04](msg_0x04.md) is a focus target on a different scale whose numeric
 range overlaps this one; the two are not interchangeable.
@@ -145,7 +171,8 @@ SEL55210 @210, with `pl[80]` already set from the lookup.
 ## Open questions
 
 - `pl[0..1]`: body-side value, purpose UNKNOWN.
-- `pl[7]`: why `0x94` only on the first frame of a session. UNKNOWN.
+- `pl[7]` bits 2–4, and why bit 7 clears and bit 3 sets after the first frame. UNKNOWN.
+- Which exposure state updates `pl[5..6]`, and whether the live field follows the user's aperture setting in stills live view.
 - `pl[12]`, `pl[15]`: two-valued fields, meaning UNKNOWN.
 - `pl[2]`, `pl[8..9]`, `pl[13..14]`, `pl[16..19]`: not yet assigned a meaning.
 - How the body chooses which rows to request.

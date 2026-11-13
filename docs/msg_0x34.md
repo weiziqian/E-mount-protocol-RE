@@ -45,7 +45,8 @@ Which shooting situations produce which AF request type is UNKNOWN.
 
 The A7 IV reads nothing beyond `pl[2]`. A non-zero `pl[0]` is logged as an error. `pl[1..2]` is
 written to the same trace as the request's target, and nothing on this path uses it further
-(**PROBABLE**).
+(**CERTAIN on the a7C II and a9 II firmware**: the reply's only consumer writes `pl[1..2]` to a trace
+log and the event log).
 
 ## When the body sends it — CERTAIN on the A7 IV firmware
 

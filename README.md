@@ -303,12 +303,13 @@ PROBABLE, and worth remembering before assuming a fixed layout.
 | **[0x3F](docs/msg_0x3F.md)** | both | init | lens name string; requested by later bodies |
 | **[0x4C](docs/msg_0x4C.md)** | both | init | optional; version check against the body |
 | **[0x4E](docs/msg_0x4E.md)** | both | init | optional; one diverting flag |
+| **[0x51](docs/msg_0x51.md)** | both | `0x03` | asynchronous iris move; every frame and at the release, natives only |
 | **[0x5A](docs/msg_0x5A.md)** | both | init | optional; request carries the enabled-ID bitmap |
 
 Messages **0x05, 0x28 and 0x35 all carry the same 6-byte optical rows**, in three different
 layouts. They have their own reference: [the 6-byte optical rows](docs/optical_data.md).
 
-Those same three messages, plus the **0x1B** command channel, all carry the **aperture value** —
+Those same three messages, plus the **0x1B** and **0x51** command channels and the body's per-frame **0x03**, all carry the **aperture value** —
 an `n × 256/3` distance index shared by every device on the bus, and emphatically *not* the lens's
 own encoder count. It has its own reference too:
 [the aperture value](docs/aperture_value.md).

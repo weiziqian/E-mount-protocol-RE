@@ -18,9 +18,10 @@ quantises in thirds of 256" means.
 | **[0x05](msg_0x05.md)** | L→B | `pl[0..1]`, and an identical second copy at `pl[2..3]` | **The lens's current aperture**, once per 60 Hz frame | **CERTAIN** |
 | **[0x05](msg_0x05.md)** | L→B | `pl[44..59]` — the **aperture descriptor** | **Maximum and minimum aperture**, in a *different* encoding. [Section 3](#3-the-other-aperture-encoding-and-the-proof) | **CERTAIN** |
 | **[0x08](msg_0x08.md)** | L→B | `pl[0..1]`, `pl[2..3]` | **Maximum and minimum aperture**, sent once at init. The A7 IV uses them as the aperture limits; for an adapter it replaces them every frame with the 0x05 descriptor | **CERTAIN on the A7 IV firmware** |
-| **[0x1B](msg_0x1B.md)** | B→L | `pl[0..1]` | **The body's aperture command.** The reply echoes the requested value back | **PROBABLE** |
-| **[0x03](msg_0x03.md)** | B→L | `pl[5..6]` | A commanded aperture, every frame. At least one lens clamps it to its own range before use | **PROBABLE** |
-| **[0x03](msg_0x03.md)** | B→L | `pl[3..4]` | A second value on the same grid | **UNKNOWN** |
+| **[0x1B](msg_0x1B.md)** | B→L | `pl[0..1]` | **The body's aperture command at a release**, to a lens without async iris. The reply echoes the requested value back | **PROBABLE**; release-only **CERTAIN on the a7C II firmware** |
+| **[0x03](msg_0x03.md)** | B→L | `pl[3..4]`, `pl[5..6]` | **The body's live-view iris targets**, every frame. `pl[7]` bit 7 selects which one is live. At least one lens clamps the value to its own range before use | **CERTAIN on the a7C II firmware** |
+| **[0x51](msg_0x51.md)** | B→L | not recovered | The live 0x03 value every frame, and the exposure aperture at a release. Natives with async iris only | **CERTAIN on the a7C II firmware** |
+| [0x50](msg_0x28.md#0x28-0x35-or-0x50--which-one-the-body-asks-for) | B→L | not recovered | The request carries the current aperture target. Natives only | **CERTAIN on the a7C II firmware** |
 | **[0x28](msg_0x28.md)** | L→B | `[0x0F..0x10]` | The same live value, beside the focal length and the optical rows | **PROBABLE** |
 | **[0x35](msg_0x35.md)** | L→B | `[0x0F..0x10]` | A delta on this scale | **POSSIBLE** |
 
@@ -285,15 +286,14 @@ mechanically is.
 | The two-byte split (whole stops / fraction) | Follows arithmetically from the u16 encoding; `0x00`/`0x55`/`0xAA` observed | **CERTAIN** |
 | `pl[44]` max / `pl[52]` min | Decoded values match the mounted lens on two Viltrox captures; zeroing them changes what the body displays | **CERTAIN** |
 | Message 0x1B `pl[0..1]` is an aperture command | Arithmetic fits two LM-EA9 hardware observations exactly; observed on an a9 II carrying f/2.0, the adapter's own declared maximum, after a shutter press | **PROBABLE** |
-| Message 0x03 `pl[5..6]` is a commanded aperture | One vendor clamps it to that vendor's own aperture range before use | **PROBABLE** |
+| Message 0x03 `pl[3..4]`/`pl[5..6]` are the body's live-view iris targets, selected by `pl[7]` bit 7 | Body firmware builds them from exposure control; one vendor clamps the value before use | **CERTAIN on the a7C II firmware** |
 | The ladder is per-lens aperture calibration | Recovered from one vendor's firmware, both directions | **CERTAIN for that vendor**, UNKNOWN as a protocol statement |
-| Message 0x03 `pl[3..4]` | Position known, meaning not | **UNKNOWN** |
 
 ---
 
 # 8. Open questions
 
-- **What `pl[3..4]` of message 0x03 is.** It sits on this grid and is latched by at least one lens.
+- **Whether the live field of message 0x03 follows the user's aperture setting** in stills live view, or stays wider in some modes. Only the release messages (0x1B or 0x51) are known to carry the exposure aperture.
 - **Why the SEL55210's power-on ramp is spaced 27 counts** rather than a power-of-two fraction of a
   stop.
 - **What `pl[46]` of the descriptor is for.** It is `pl[44] − 8`, one stop wider than the maximum, on
@@ -302,7 +302,7 @@ mechanically is.
 - **Whether a lens ever reports a value it was not commanded**, i.e. whether `pl[0..1]` is a
   measured blade position or an echo of the last command. Yongnuo reports the counter, which is a
   measurement; no second implementation has been read.
-- **How a native E-mount lens is commanded.** The LM-EA9 and the Viltrox adapters receive message
-  0x1B; no native has been observed receiving anything. Since natives leave the Canon-convention
-  descriptor empty, the command may travel by a different route entirely — a
-  [message 0x03](msg_0x03.md)/[0x04](msg_0x04.md) record is the obvious candidate.
+- **How a native E-mount lens is commanded** — answered. In live view by
+  [message 0x03](msg_0x03.md#where-the-body-takes-the-aperture-pair-from), repeated in
+  [message 0x51](msg_0x51.md) for lenses with async iris; at a release by 0x51, or by
+  [message 0x1B](msg_0x1B.md) for lenses without it. CERTAIN on the a7C II firmware.

@@ -61,11 +61,22 @@ loop. It appears in no idle or init-only observation.
 The value the a9 II sent, f/2.0, is the maximum aperture that device declares in
 [message 0x05](msg_0x05.md) `pl[44]`.
 
+**It is the release sequence's Iris step.** The body's lens sequencer (`BLSequencer`) sends the
+exposure aperture in its Iris step, in this message, `pl[0..1]` = `pl[2..3]` = the aperture. The
+value comes from the release job; nothing outside a capture calls this path. A lens that supports
+the asynchronous iris message gets [message 0x51](msg_0x51.md) here instead, and never 0x1B.
+CERTAIN on the a7C II firmware. What makes a lens qualify for 0x51 is UNKNOWN beyond "a lens
+capability check", but 0x51 is never sent to a third-party lens ID, so third-party lenses always get
+0x1B.
+
+Between captures, the body's aperture travels in [message 0x03](msg_0x03.md#where-the-body-takes-the-aperture-pair-from).
+
 ## Open questions
 
 - **`pl[4..9]` of the response.** Six bytes; two of them take more than one observed value.
 - **The full payload of a request.** Only `pl[0..1]` has been recovered.
 - **Whether a native E-mount lens ever receives this message.** It has been observed only at devices
-  that populate the aperture descriptor at [message 0x05](msg_0x05.md) `pl[44..59]`. Devices that
-  leave that block empty may be commanded by another route.
+  that populate the aperture descriptor at [message 0x05](msg_0x05.md) `pl[44..59]`. A native that
+  supports [message 0x51](msg_0x51.md) is commanded through 0x51 instead; whether any native lacks
+  that support is UNKNOWN.
 - **Whether the class byte is significant.** Only init-class frames have been observed.
