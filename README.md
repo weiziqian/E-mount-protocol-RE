@@ -314,6 +314,10 @@ an `n × 256/3` distance index shared by every device on the bus, and emphatical
 own encoder count. It has its own reference too:
 [the aperture value](docs/aperture_value.md).
 
+A lens can also **report or move the aperture**: 0x08 declares an aperture ring, and 0x05
+`pl[17..19]` reports a manually set aperture or a ±1 step of the body's aperture setting:
+[lens control of the aperture](docs/lens_aperture_control.md).
+
 Messages **0x04 and 0x06 together form the focus loop**: the body packs focus instructions — move,
 scan, stop, drive — as tagged records into 0x04, and the lens reports its motion and signals
 completion through 0x06. The instructions, the motion each one requires, and how the lens answers
