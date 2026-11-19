@@ -25,15 +25,23 @@ an [aperture value](aperture_value.md) at `pl[0..1]`, repeated at `pl[2..3]`.
 
 | `pl` | Size | Name | Description | Confidence |
 | --- | --- | --- | --- | --- |
-| `0..1` | 2 | Aperture | An aperture, u16 LE, on the [aperture value](aperture_value.md) scale | **CERTAIN** |
-| `2..3` | 2 | Aperture, repeated | The same value again | **CERTAIN** |
-| `4` | 1 | — | Purpose unknown. Observed values: `0x00`, `0x01` | **UNKNOWN** |
-| `5..6` | 2 | — | Purpose unknown. Observed value: `0x00 0x00` | **UNKNOWN** |
-| `7..8` | 2 | — | Purpose unknown. Observed value: `0x0A 0x0A` | **UNKNOWN** |
-| `9` | 1 | — | Purpose unknown. Observed values: `0x01`, `0x07` | **UNKNOWN** |
+| `0..1` | 2 | Current aperture | The lens's current aperture, u16 LE, on the [aperture value](aperture_value.md) scale. Same field as [message 0x05](msg_0x05.md) `pl[0..1]` | **CERTAIN** |
+| `2..3` | 2 | Aperture, repeated | Same field as 0x05 `pl[2..3]` | **CERTAIN** |
+| `4` | 1 | Aperture settle countdown | Same field as 0x05 `pl[4]`. Observed values: `0x00`, `0x01` | **CERTAIN on the A7 IV firmware** |
+| `5..6` | 2 | — | Same field as 0x05 `pl[5..6]`: one u16 LE, 12-bit. Observed value: `0x00 0x00` | Reading **CERTAIN on the A7 IV firmware**; quantity **UNKNOWN** |
+| `7..8` | 2 | — | **Not read by the A7 IV.** Observed value: `0x0A 0x0A` | **CERTAIN on the A7 IV firmware** |
+| `9` | 1 | State | Same field as 0x05 `pl[8]`; the body keeps `pl[9] & 7` and uses only **bit 0 = aperture at rest**. Observed values: `0x01`, `0x07` | **CERTAIN on the A7 IV firmware** |
 
-The value in `pl[0..1]` is either the aperture the request asked for or the lens's own current
-aperture; both are observed, and a settled lens reports the same number either way.
+### How the body reads the response — CERTAIN on the A7 IV firmware
+
+The 0x1B reply callback writes these fields into the same lens-status record that
+[message 0x05](msg_0x05.md) field `00`/`01` fills, then rebuilds the body's lens status from it. So
+the reply's `pl[0..1]` **becomes the body's current aperture at once**, and the next 0x05 frame
+overwrites it. A lens whose 0x1B reply and 0x05 disagree makes the body's current aperture jump
+between the two values.
+
+Bit 0 of `pl[9]` feeds the same "aperture at rest" state as 0x05 `pl[8]` bit 0; the body's
+aperture-compensation step in [message 0x03](msg_0x03.md) waits on it.
 
 ## Frame examples
 
@@ -73,7 +81,7 @@ Between captures, the body's aperture travels in [message 0x03](msg_0x03.md#wher
 
 ## Open questions
 
-- **`pl[4..9]` of the response.** Six bytes; two of them take more than one observed value.
+- **`pl[5..6]` of the response.** Read as a 12-bit value; what it measures is UNKNOWN, as in 0x05.
 - **The full payload of a request.** Only `pl[0..1]` has been recovered.
 - **Whether a native E-mount lens ever receives this message.** It has been observed only at devices
   that populate the aperture descriptor at [message 0x05](msg_0x05.md) `pl[44..59]`. A native that
