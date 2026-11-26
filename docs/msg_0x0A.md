@@ -36,7 +36,8 @@ The all-zero exchange is in three NEX-7 captures (SEL2870, Voigtländer 15 mm tw
 
 ## It is an exact echo
 
-Every device measured returns the body's 16 bytes unchanged. That makes it plausibly a **link test
+Every device measured returns the body's 16 bytes unchanged, except the Sony SELP1650 asked by an a7CR
+(below). That makes it plausibly a **link test
 or echo/loopback check** — a way for the body to confirm the newly negotiated 1.5 Mbaud link carries
 16 bytes intact in both directions before the status loop starts. PROBABLE.
 
@@ -86,6 +87,11 @@ With `0xe1`, a lens that sent the 105-byte form anyway completed the handshake a
 body: the a9 II never sent [message 0x16](msg_0x16.md), cut the lens's power within seconds and
 restarted the session, repeatedly. The same lens sending 117 bytes worked normally. So `ff ff` is
 not merely permission — a body that sends it **requires** the long form. CERTAIN on this body.
+
+A Sony a7CR (full init, SEL40F25G and SELP1650) sends `ff f9 07 00 00 00 00 00 2f 00 00 00 00 00 00 00`: `pl[1] = f9`, `pl[2] = 07`, `pl[8] = 2f`
+instead of `3f`. The SEL40F25G replies with the same 16 bytes; the SELP1650 replies `ff 79 00 00 00 00 00 00 2f …`, clearing `pl[1]` bit 7 and
+`pl[2]`. A request of `ff ff 07 … 3f` also let both lenses initialise. PROBABLE (the replies repeat across sessions). Whether the request depends on each lens's 0x08
+`pl[13]` is **UNKNOWN**.
 
 ### The rule, from the A7 IV firmware
 
@@ -141,11 +147,16 @@ sends [message 0x16](msg_0x16.md), the shutdown request. **CERTAIN** on the A7 I
 state machine); the NEX-7 does the same on the wire. Yongnuo treats `pl[0..1] = 00 00` as a mode of
 its own, separate from `ff xx`, and on it shuts down parts of the lens.
 
+A Sony a7CR also sends the all-zero 0x0A at each shutter release, as the normal loop pauses for the exposure, and its normal init
+request (`ff f9 07 … 2f`) again as the loop resumes; a Sony SEL40F25G echoes both. With [0x0B](msg_0x0B.md) re-sent alongside. Sent mid-session, the all-zero 0x0A stops the lens's
+0x05 and 0x06 while 0x42 and 0x5E go on; the normal request brings them back, and focus and aperture then work as before. This is the loop
+pause of the release. **PROBABLE** (the capture, and a SEL40F25G given the same frames).
+
 Yongnuo also has a third mode for `pl[0..1] = 40 00`. No body has been seen sending it.
 
 ## Manufacturer notes
 
-- **Sony**, **Viltrox**, **TECHART** — all echo. No device measured deviates.
+- **Sony**, **Viltrox**, **TECHART** — all echo, except the Sony SELP1650, which replies `ff 79 00 …` to the a7CR's `ff f9 07 …` (PROBABLE).
 - **Yongnuo** — echoes, and also reads the request: `pl[0..1]` for the message 0x05 length and the
   session mode, `pl[8]` for the message 0x06 length.
 

@@ -108,6 +108,13 @@ in a 0x04 frame.
   distance, are not read by the A7 IV.
 - **Viltrox** — the EF adapter does not declare it.
 
+A Sony a7CR sends it to a Sony SELP1650 during a burst (`95 39 00 00 26 …`, `93 39 00 00 21 …`, answered with the position);
+to a lens with the class-3 group it sends [0x4A](msg_0x4A.md) instead. POSSIBLE.
+
+Sent to a Sony SELP1650 mid-session with a time limit of `26` (38 ms), it moved focus to the requested position each time (16700, then
+16560, from 16384 and from 16700) and answered with that position. One request with `21` (33 ms) for a 316-count move was answered with
+the previous target and not executed. POSSIBLE.
+
 ## Open questions
 
 - What the release-sequence move corrects, and which shooting modes trigger it.

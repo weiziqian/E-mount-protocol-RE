@@ -16,8 +16,12 @@ after the baud-rate negotiation.
 | --- | --- | --- |
 | B→L | Sony A6000, every lens | `60 00` |
 | B→L | Sony a9 II | `60 00` |
+| B→L | Sony a7CR (full init) | `60 c0` — POSSIBLE |
 | L→B | Sony SELP1650 | `60 20` |
 | L→B | Sony SEL55210 | **`60 00`** |
+| L→B | Sony SEL24F28G, SEL40F25G | `60 00` |
+| B→L, L→B | Sony a7CR, SELP1650, at a shutter release | `30 01` → `30 00` as the loop pauses; `60 01` → `60 00` as it resumes — POSSIBLE |
+| B→L, L→B | Sony a7CR, SEL40F25G, at a shutter release | `30 61` → `30 00` as the loop pauses; `60 c1` → `60 00` as it resumes; a SEL40F25G given the same requests mid-session answered the same — PROBABLE |
 | L→B | Viltrox EF adapter | `60 00` |
 | L→B | TECHART LM-EA9 | `60 20` |
 | L→B | Yongnuo 50F1.8S DF | `60 00` — the request echoed, `pl[1]` forced to `00` |
@@ -37,10 +41,13 @@ negotiation** sits, so 0x0B is the first exchange at the higher rate.
 
 ## Manufacturer notes
 
-- **Sony** — the two natives measured disagree: SELP1650 `60 20`, SEL55210 `60 00`.
+- **Sony** — the natives measured disagree: SELP1650 `60 20`; SEL55210, SEL24F28G and SEL40F25G
+  `60 00`.
 - **TECHART** — the LM-EA9 replies `60 20`.
 - **Viltrox** — replies `60 00`.
 - **Yongnuo** — the 50 DF echoes the request and clears `pl[1]`.
+
+A request of `60 00` instead of `60 c0` draws the same replies. PROBABLE (SEL40F25G).
 
 The A7 IV only checks that a reply arrived; it does not read it. CERTAIN on the A7 IV firmware.
 

@@ -195,7 +195,10 @@ pin handshake (already at the fast speed)
   supports — taken from the declaration, not from the lens's 0x0C reply. A lens that declares
   speed 1 must therefore come back from sleep at 1.5 Mbaud, without being told.
 - `[54]` replaces `0x10` when the lens declared 0x54; `[53]` is sent only when the lens declared
-  0x51, 0x52 and 0x53. Their contents have not been analysed.
+  0x51, 0x52 and 0x53. The contents of 0x53 are on [its page](docs/msg_0x53.md); 0x54 has not been analysed.
+- Seen on the wire: a Sony a7CR and a SELP1650 after sleep and after power-off. A SELP1650 kept powered after 0x16 drives its TX line low
+  and leaves `LENS_CS` low; given the pin handshake at 1.5 Mbaud and this sequence it answered every request and worked again (3 of 3,
+  after 3 to 10 s); without the pin handshake it did not answer `0x0B`. PROBABLE.
 - A failed wake is handled like any failed handshake: the body retries, and the retry is a full
   init from `0x01` at 750 kbaud.
 
@@ -294,6 +297,7 @@ PROBABLE, and worth remembering before assuming a fixed layout.
 | **[0x20](docs/msg_0x20.md)** | B→L | ? | probably a frame length, not an ID |
 | **[0x28](docs/msg_0x28.md)** | both | init | lens state at a still capture: subject distance, focal length (EXIF), rows |
 | **[0x2B](docs/msg_0x2B.md)** | both | init | adapter re-identification (adapters only) |
+| **[0x2E](docs/msg_0x2E.md)** | L→B | normal | an alternate form of 0x06 (Sony SELP1650); not the 0x2E query record |
 | **[0x32](docs/msg_0x32.md)** | ? | ? | implemented but not advertised |
 | **[0x34](docs/msg_0x34.md)** | both | init | timed focus move, from the body's release sequence |
 | **[0x35](docs/msg_0x35.md)** | both | init | the same as 0x28 with long-form rows; the A7 IV picks it by 0x08 `pl[13]` / 0x3D `pl[33]` |
@@ -301,10 +305,25 @@ PROBABLE, and worth remembering before assuming a fixed layout.
 | **[0x3B](docs/msg_0x3B.md)** | L→B | `0x03` | paged optical file (pupil/vignetting table) |
 | **[0x3D](docs/msg_0x3D.md)** | both | init | the lens's 0x3A/0x3B file bitmap and optional-field bits; requested by later bodies |
 | **[0x3F](docs/msg_0x3F.md)** | both | init | lens name string; requested by later bodies |
+| **[0x41](docs/msg_0x41.md)** | both | `0x03` | selects the 0x42 sample rate (`pl[0]` = `60` to `63`) |
+| **[0x42](docs/msg_0x42.md)** | L→B | `0x03` | 16 focus-position samples per loop; they ramp while the focus ring turns |
+| **[0x43](docs/msg_0x43.md)** | both | `0x03` | move focus to a position, with a counted reply; used by the a7CR's autofocus |
+| **[0x44](docs/msg_0x44.md)** | both | `0x03` | 3-byte reply to 0x5F and to a 7-byte 0x41; also sent by the body around ring moves and at shutdown |
+| **[0x45](docs/msg_0x45.md)** | B→L | `0x03` | sets up a focus sweep (autofocus, and at power-on) that 0x46 runs |
+| **[0x46](docs/msg_0x46.md)** | both | `0x03` | runs the focus sweep set by 0x45; the lens replies 0x47, 0x48 |
+| **[0x49](docs/msg_0x49.md)** | both | `0x03` | focus step during autofocus on a half-press |
+| **[0x4A](docs/msg_0x4A.md)** | both | `0x03` | timed focus move (class-3 form of 0x34); used at the shutter release |
 | **[0x4C](docs/msg_0x4C.md)** | both | init | optional; version check against the body |
 | **[0x4E](docs/msg_0x4E.md)** | both | init | optional; one diverting flag |
+| **[0x4F](docs/msg_0x4F.md)** | B→L | `0x03` | exposure start and end, with an aperture value |
+| **[0x50](docs/msg_0x50.md)** | both | `0x03` | lens state for the picture (distance, focal length, aperture); class-3 counterpart of 0x28 |
 | **[0x51](docs/msg_0x51.md)** | both | `0x03` | asynchronous iris move; every frame and at the release, natives only |
+| **[0x52](docs/msg_0x52.md)** | L→B | `0x03` | iris move complete, for a 0x51 with `pl[1]` = `80` |
+| **[0x53](docs/msg_0x53.md)** | both | `0x03` | bit 7 enables 0x51 iris moves; sent in the init and to switch photo/movie mode |
 | **[0x5A](docs/msg_0x5A.md)** | both | init | optional; request carries the enabled-ID bitmap |
+| **[0x5D](docs/msg_0x5D.md)** | both | `0x03` | starts the lens's 0x5E stream; last message of the burst after the init |
+| **[0x5E](docs/msg_0x5E.md)** | L→B | `0x03` | aperture and focus status (current, target, travel limits), twice per loop |
+| **[0x5F](docs/msg_0x5F.md)** | both | `0x03` | starts the lens's 0x42 stream; first message of the burst after the init |
 
 Messages **0x05, 0x28 and 0x35 all carry the same 6-byte optical rows**, in three different
 layouts. They have their own reference: [the 6-byte optical rows](docs/optical_data.md).

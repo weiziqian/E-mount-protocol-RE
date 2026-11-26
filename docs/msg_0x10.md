@@ -17,14 +17,20 @@ in the handshake.
 | --- | --- | --- |
 | B→L | Sony A6000 → natives | `1f` |
 | B→L | Sony A6000 → Viltrox EF adapter | **`3f`** |
-| L→B | Sony SELP1650, SEL55210, Viltrox EF adapter | `00` |
+| L→B | Sony SELP1650 | `00`; **`01`** without motor power |
+| L→B | Sony SEL55210, Viltrox EF adapter | `00` |
+| L→B | Sony SEL24F28G | `00`; **`01`** without motor power |
 | L→B | TECHART LM-EA9 | implements a reply |
 
 ## Reply `pl[0]` bit 0 — not ready
 
 The A7 IV treats bit 0 set as "not ready" and **keeps waiting** in this step; bit 0 clear lets the
-handshake proceed to [message 0x0A](msg_0x0A.md). Every lens captured replies `00`. CERTAIN on the
-A7 IV firmware.
+handshake proceed to [message 0x0A](msg_0x0A.md). CERTAIN on the A7 IV firmware.
+
+Every lens captured from a Sony body replies `00`. A Sony SEL24F28G replies `01` when no current
+reaches its motor supply (pin 2): after 10.0 s, every attempt, against `00` in 0.2–0.3 s with motor
+power. So "not ready" covers at least a lens that cannot power its motors. The SELP1650 does the same, replying `01` after 5.2 s; the init then completes. PROBABLE (two lenses, repeated in
+separate sessions).
 
 The A7 IV sends the request **once** and does not repeat it, and in the 0x10 step it takes every
 reply that arrives. CERTAIN on the A7 IV firmware (`0x9945ca` sends, `0x3b1c4c` sub-state `0x1a`
@@ -53,13 +59,14 @@ The body adapts its own frames to what the lens declared during init.
 
 On the Sony SELP1650 the request is at ~169 ms and the reply at ~1504 ms. The lens is presumably
 initialising hardware in that window; PROBABLE. Nothing else in the handshake comes close to this
-gap.
+gap. In another session the same lens took 3.2 s; the SEL24F28G and SEL40F25G take 0.2–0.3 s.
 
 An implementation must not treat a slow 0x10 reply as a failure.
 
 ## Manufacturer notes
 
-- **Sony**, **Viltrox** — all reply `00`.
+- **Sony**, **Viltrox** — all reply `00` in normal use; the SEL24F28G and SELP1650 reply `01` without
+  motor power.
 - **TECHART**, **Yongnuo** — both implement the message; Yongnuo's reply is identical across its
   lineup.
 
@@ -68,3 +75,4 @@ An implementation must not treat a slow 0x10 reply as a failure.
 - What the individual request bits mean.
 - What the lens does during the ~1.3 s before replying.
 - Whether any body gives up on a slow 0x10 reply (none found on the A7 IV).
+- What a Sony body does with a `01` reply, and whether the SEL24F28G's 10 s is a lens timeout.

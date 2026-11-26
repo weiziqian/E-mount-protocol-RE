@@ -34,7 +34,10 @@ model configuration bit overrides that. This applies only to a lens that declare
 
 ## 2. The report — message 0x05 field 3, `pl[17..19]`
 
-Present when the body's [message 0x0A](msg_0x0A.md) request includes field 3.
+Present when the body's [message 0x0A](msg_0x0A.md) request includes field 3. On a SEL40F25G it is also **only reported when bit 7 of `pl[1]`
+in the body's [message 0x08](msg_0x08.md#bit-7-of-pl1-also-switches-on-the-manual-aperture-report) request is set**: with the bit clear the
+field stays `00 00 00` even with the ring off A. With the bit set it reads `00 14 00` with the ring on A (value `0x1400`, bit 0 clear) and
+`pl[19]` bit 0 set with the ring's value when the ring is off A; in the a7CR captures the same values appear. **PROBABLE**, one lens.
 
 | `pl` | Debug name | Meaning | Confidence |
 | --- | --- | --- | --- |
@@ -74,11 +77,29 @@ and bits 2–5 are cleared. A model configuration flag can apply the same mask t
 **CERTAIN on the A7 IV firmware.** So a third-party lens can use both the absolute and the
 relative report.
 
-## 3. Open questions
+## 3. What the body does when the ring moves — observed on a Sony a7CR
+
+With a Sony SEL40F25G: ring moved A to f/2.5 and back, and an aperture change from the body.
+
+| Step | What the body sends | Confidence |
+| --- | --- | --- |
+| the lens starts to report the ring | nothing; [0x05](msg_0x05.md) `pl[17..19]` goes from `00 14 00` to a value with `pl[19]` bit 0 set, then follows the ring | **POSSIBLE** |
+| then | [0x51](msg_0x51.md) every second loop; the [0x03](msg_0x03.md) target `pl[3..6]` steps by `0x0080` toward the ring's value | **POSSIBLE** |
+| later | two [0x44](msg_0x44.md) frames, 0x03 `pl[10]` = `04` between them | **POSSIBLE** |
+| after the ring stops | the stream ends on the ring's last value | **POSSIBLE** |
+
+A body sending only the loop frames survived the same move on the Sony SEL40F25G and SEL24F28G if the [0x08](msg_0x08.md#bit-7-of-pl1-also-switches-on-the-manual-aperture-report)
+request had `pl[1]` bit 7 set; the lens's reported aperture ([0x05](msg_0x05.md) `pl[0..3]`) then did not follow the ring, and with the 0x51 stream and
+the stepping above it did. On the SEL40F25G under the a7CR's init a changed 0x03 target alone did not move the iris and the 0x51 stream did (7 of 7); the SEL24F28G, which also replies to each 0x51, did the same. Both accept 0x51 only if the init included
+[0x53](msg_0x53.md) with bit 7 set; with it clear (movie mode on an a7CR) they follow the 0x03 target instead, which the body steps every loop. The SELP1650 sends no reply to 0x51 and followed the 0x03 target with or without it.
+**PROBABLE.**
+
+## 4. Open questions
 
 - What the main processor does with events `0x12000006` and `0x12000007`: whether it changes the
   aperture setting, and whether it requires the 0x08 declaration.
 - The direction of a +1 step, and its size (1/3 stop or more).
 - `pl[19]` bit 1.
-- Which lenses set these fields. No lens observed sets `pl[19]` bit 0 or bit 6
+- Which lenses set these fields. The SEL40F25G sets `pl[19]` bit 0 and `pl[17..18]` when its ring is off A (in a7CR captures of an aperture
+  ring move). No lens observed sets bit 6 or bit 7 (the ±1 step) or `pl[19]` bit 1
   ([message 0x05](msg_0x05.md)); the 0x08 flags have not been checked against captures.

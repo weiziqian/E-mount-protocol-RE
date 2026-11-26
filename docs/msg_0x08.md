@@ -46,8 +46,34 @@ of a zoom's range, so it is the rated spec, not a live value.
 | Viltrox + Canon EF 50/1.8 | 50 f/1.8 | `00 50` | `00 00` | `18` | `00` |
 | Viltrox + Canon EF-S 24/2.8 | 24 f/2.8 | `00 24` | `00 00` | `28` | `00` |
 | Voigtländer 15/4.5 (manual) | 15 f/4.5 | `00 15` | `00 00` | `00` | `00` |
+| Sony SEL24F28G | 24 f/2.8 | `00 24` | `00 00` | `28`, or `00` (below) | `00` |
+| Sony SEL40F25G | 40 f/2.5 | `00 40` | `00 00` | `25`, or `00` (below) | `00` |
 
 A manual lens may leave the aperture at `00`. What the body uses these fields for is UNKNOWN.
+
+### A lens with an aperture ring declares the ring's position at init
+
+The Sony SEL24F28G and SEL40F25G have an aperture ring with an **A** position. Their 0x08 reply
+depends on where the ring is when the lens powers up, when the request's `pl[1]` bit 7 is clear:
+
+| Ring at power-up | `pl[2..3]` minimum aperture | `pl[20]` | `pl[25..26]` |
+| --- | --- | --- | --- |
+| **A** | the real minimum, `00 19` (f/22) | rated f-number (`28`, `25`) | `00 80` |
+| an f-number | **equal to `pl[0..1]`**, the maximum (`0e 13` f/2.8, `b8 12` f/2.5) | `00` | `48 86` (SEL40F25G), `f2 85` (SEL24F28G) |
+
+With the bit set, the reply is the one for **A** whatever the ring, and the ring's setting appears in [0x05](msg_0x05.md) `pl[17..19]`
+instead (`01 16 01` for f/8 on a SEL24F28G). **PROBABLE** (SEL24F28G, ring on A and on f/8, bit set and clear).
+
+With the bit clear and the ring off A, the iris follows the ring and [0x05](msg_0x05.md) `pl[0..1]` reports it; focus commands still work. A [0x03](msg_0x03.md)
+aperture target that differs from the ring (a fixed maximum aperture, or `0x1000`) makes the iris flicker between the ring setting and fully open,
+and a target copied each frame from 0x05 `pl[0..1]` still lets it snap open now and then. What a body sends in this mode is UNKNOWN. A minimum
+equal to the maximum leaves a body that takes `pl[2..3]` as its aperture limit no range to command, which matches. With `pl[1]` bit 7 of the
+0x08 request clear, nothing in 0x05 `pl[17..19]` flags the manual setting. **PROBABLE** (two lenses; the SEL40F25G ring was set before each power-up).
+
+The ring can also move between A and an f-number during a session. With the request's `pl[1]` bit 7 clear, a body that only keeps the normal loop
+running loses both lenses when the ring leaves A: within a few frames the lens stops sending, cuts its motor current and answers nothing until
+power-cycled. With the bit set the lens keeps running and reports the ring in 0x05 `pl[17..19]`
+([below](#bit-7-of-pl1-also-switches-on-the-manual-aperture-report)).
 
 ## `pl[85]`
 
@@ -55,6 +81,7 @@ A manual lens may leave the aperture at `00`. What the body uses these fields fo
 | --- | --- |
 | Yongnuo YN35 / 50 DA / 50 DF | `0x80` |
 | Sony SELP1650, SEL55210, Voigtländer 15 | `0x00` |
+| Sony SEL24F28G, SEL40F25G | `0x80` |
 | Viltrox EF adapters | `0x04` |
 | TECHART LM-EA9 (stock firmware) | `0x04` |
 
@@ -131,6 +158,7 @@ evaluation asks for the focus positions of a run of frames, and gets:
 | --- | --- | --- | --- |
 | Sony native, NEX-7 capture | `01` | native | `pl[2..3]`, 1 per frame |
 | Yongnuo 50 DF | `14` | native | trace, 8 per frame |
+| Sony SEL24F28G, SEL40F25G | `14` | native | trace, 8 per frame |
 | Stock LM-EA9 | `02` | adapter | `pl[2..3]`, 1 per frame |
 
 The nibble is read in other places too, and those were not traced to a meaning. Besides deciding
@@ -332,18 +360,27 @@ Whole frames, checksums verified:
 ```
 Sony a9 II   F0 11 00 02 00 08 | C6 E1 00 00 F9 0D 62 02 | 2C 03 55
 Sony A6000                     | C2 61 00 00 00 0C 62 02 |
+Sony a7CR    F0 11 00 02 00 08 | C6 E1 FB FF D8 08 62 02 | 00 05 55
 ```
 
-17 bytes: the 6-byte header, 8 payload bytes, and the 3-byte trailer.
+17 bytes: the 6-byte header, 8 payload bytes, and the 3-byte trailer. The a7CR frame is from a capture of its full init with a Sony SEL40F25G.
 
-| `pl` | a9 II | A6000 | |
-| --- | --- | --- | --- |
-| `0` | `C6` | `C2` | **UNKNOWN** |
-| **`1`** | **`E1`** | **`61`** | **bit 7 is the capability bit below**; the rest **UNKNOWN** |
-| `2..3` | `00 00` | `00 00` | **UNKNOWN** |
-| `4` | `F9` | `00` | **UNKNOWN** |
-| `5` | `0D` | `0C` | **UNKNOWN** |
-| `6..7` | `62 02` | `62 02` | Constant across both bodies. **UNKNOWN** |
+| `pl` | a9 II | A6000 | a7CR | |
+| --- | --- | --- | --- | --- |
+| `0` | `C6` | `C2` | `C6` | **UNKNOWN** |
+| **`1`** | **`E1`** | **`61`** | **`E1`** | **bit 7 is the capability bit below**, and it also switches on the manual-aperture report (next section); the rest **UNKNOWN** |
+| `2..3` | `00 00` | `00 00` | `FB FF` | **UNKNOWN**; the a7CR is the only body seen with non-zero values |
+| `4` | `F9` | `00` | `D8` | **UNKNOWN** |
+| `5` | `0D` | `0C` | `08` | **UNKNOWN** |
+| `6..7` | `62 02` | `62 02` | `62 02` | Constant across all three bodies. **UNKNOWN** |
+
+## Bit 7 of `pl[1]` also switches on the manual-aperture report
+
+On a Sony SEL40F25G, with `pl[1]` bit 7 set (the a7CR's request, or the A6000's with the bit set) [0x05](msg_0x05.md) `pl[17..19]` reads
+`00 14 00` with the ring on A; with it clear, `00 00 00`. `pl[0]`, `pl[2..5]` and the rest of the init do not matter. With the bit clear and the
+ring moved from A to a number mid-session, the lens answers the loop with a class-2 frame, ID `02`, payload `ff ff 01 00 00 00 00`, and then goes
+silent; with the bit set the move is reported in `pl[17..19]` and the lens keeps running ([lens control of the aperture](lens_aperture_control.md)).
+A SEL24F28G reads `00 14 00` with the bit set and `00 00 00` with it clear, and with it clear goes silent the same way when the ring leaves A. The SELP1650 has no aperture ring and reports `00 00 00` either way. **PROBABLE** (SEL40F25G and SEL24F28G).
 
 ## The request enables an optional field in messages 0x28 and 0x35
 

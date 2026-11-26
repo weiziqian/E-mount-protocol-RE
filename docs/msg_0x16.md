@@ -68,6 +68,11 @@ next power-on runs the short
 with no 0x01. If `LENS_XDETECT` (pin 10) goes high in the meantime, the cache is cleared and the next
 power-on is a full init.
 
+Seen on the wire with a Sony a7CR and a SELP1650: `03` before sleep and `01` before power-off, the zoom retracted before the reply (1.1 s),
+and in both cases the short wake sequence at 1.5 Mbaud (0x0B `60 00`, 0x09, 0x0D, 0x10, 0x0A) about 5.5 s later. With a SEL24F28G, power-on
+after power-off was a full init. POSSIBLE. A SELP1650 kept powered after 0x16 (`01` or `03`) answers the wake sequence only after the pin
+handshake at 1.5 Mbaud ([README](../README.md#wake-the-short-sequence-after-0x16)). PROBABLE (3 of 3).
+
 A lens that loses power at shutdown restarts at 750 kbaud and cannot answer the wake sequence. The
 body retries with a full init, so the lens still comes up, one or more power cycles later.
 PROBABLE: follows from the firmware, not captured.
@@ -93,6 +98,16 @@ power-on: the body takes noticeably longer to begin talking in the next session.
 off after the reply removes the delay. PROBABLE: shown on two otherwise identical lens
 implementations that differed only in this, with the delay reproduced across five consecutive
 sessions. The mechanism is UNKNOWN.
+
+### Observed on Sony lenses
+
+| Lens, sender | Sequence and timing | Confidence |
+| --- | --- | --- |
+| Sony SEL40F25G, a7CR (power-off capture) | class-3 [0x44](msg_0x44.md) and [0x41](msg_0x41.md) first; then 0x0A (16 zero bytes) and 0x16, answered after 225 ms | **POSSIBLE** |
+| Sony SELP1650, SEL24F28G, sender sending 0x0A (16 zero bytes) then 0x16 `01` | 0x0A answered in about 10 ms, 0x16 after 0.7 s (SELP1650, 6 of 6 sessions, with or without a 0x44/0x41 exchange first) or 0.23 s (SEL24F28G, also answered in 6 of 6 sessions). The SELP1650 retracts its zoom before replying, so keep the motor supply on until the reply | **PROBABLE** (SELP1650), **POSSIBLE** (SEL24F28G timing, one capture) |
+| Sony SEL40F25G, same sender, 0x08 `pl[1]` bit 7 set, with or without the 0x44/0x41 exchange first | 0x0A and 0x16 answered in 6 of 6 sessions (3 each way); one longer session got no 0x16 reply, cause **UNKNOWN**, so a body should repeat the request | **PROBABLE** |
+
+The 0x44/0x41 exchange is not required for the SEL40F25G or SELP1650 to answer.
 
 ## Manufacturer notes
 

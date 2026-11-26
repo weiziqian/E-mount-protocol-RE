@@ -133,7 +133,7 @@ same residue and it does not. Recorded as an open question; nothing in the proto
 | --- | --- | --- |
 | `0x02` | `MESSAGE_CLASS_INIT` | The startup handshake. Strict request/response, `seq` = 0. |
 | `0x01` | `MESSAGE_CLASS_NORMAL` | The 60 Hz status loop. |
-| `0x03` | — | Replies of [0x3A](msg_0x3A.md) and [0x3B](msg_0x3B.md), the paged file transfer. Seen in Yongnuo and TTArtisan firmware only, never on the wire. **PROBABLE** |
+| `0x03` | — | Replies of [0x3A](msg_0x3A.md) and [0x3B](msg_0x3B.md), the paged file transfer. Seen in Yongnuo and TTArtisan firmware, never on the wire from a Sony body. **PROBABLE**. Sony lenses also send it on the wire, in abnormal states: SEL24F28G ID `0x17` `3e 01` after a not-ready [0x10](msg_0x10.md); SELP1650 ID `0x17` `5e 12` at 60 Hz when the body went quiet during init; SELP1650 ID `0x02` `02 3f 04 00 4b 00 55` in place of a reply to an undeclared `0x3F`. Meaning UNKNOWN. **POSSIBLE** |
 
 ## Sequence byte — CERTAIN
 

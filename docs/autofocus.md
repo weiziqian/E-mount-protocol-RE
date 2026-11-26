@@ -70,7 +70,7 @@ skip exactly 13 bytes to reach the records.
 | Field | Meaning | Confidence |
 | --- | --- | --- |
 | `pl[0..5]` | Prefix `0x00 0x00 0x19` then `pl[3]`, then `0x00 0x00` | Constant **CERTAIN** apart from `pl[3]`; meaning **UNKNOWN** except `pl[3]` |
-| `pl[3]` | **Focus control mode.** `0x83` = focus is driven by the body (AF); `0x81` = manual focus by wire, the lens follows its own focus ring (§3.5). A lens switches only while focus is at rest and nothing is pending. **Both values have now been seen**: `0x83` throughout the earlier captures, and `0x81` in the first frames of the normal loop on a Sony a9 II | **POSSIBLE** |
+| `pl[3]` | **Focus control mode.** `0x83` = focus is driven by the body (AF); `0x81` = manual focus by wire, the lens follows its own focus ring (§3.5). A lens switches only while focus is at rest and nothing is pending. `0x81` is sent in the first frames of the normal loop by a Sony a9 II, `0x83` elsewhere. With `0x81` the SEL40F25G follows its focus ring: 0x06 `pl[2..3]` tracks the ring in both directions | **PROBABLE** |
 | `pl[6]` | Constant within a session; `0x3B`, `0x28`, `0x21`, `0x18` observed | **UNKNOWN** |
 | `pl[7]` | `0x1F` or `0x00` depending on the device class | **UNKNOWN** |
 | `pl[10]` | Body state code. `0x09` while idle; `0x40`, `0x41` alongside focus-position records; `0x48` alongside scan records; `0x08`, `0x00`, `0x01` otherwise | A state code **PROBABLE**; individual states **UNKNOWN** |
@@ -82,6 +82,7 @@ skip exactly 13 bytes to reach the records.
 | --- | --- | --- | --- | --- |
 | **`0x1C`** | 1 B | **Stop** | Stop focus motion | Size **CERTAIN**; meaning **PROBABLE** |
 | **`0x1D`** | 5 B | **Move** | Move focus to a position | Size **CERTAIN**; meaning **PROBABLE** |
+| **`0x1E`** | 5 B | **Zoom** | Drive a power zoom: `rec[1..2]` = `00 00` toward the wide end, non-zero (`ff ff`, `00 80`) toward the tele end, a direction and not a target; `rec[3..4]` = u16 LE speed (700, 1321 and 6060 at the a7CR's zoom speeds 1, 3 and 8), `0` = stop. The lens keeps zooming until a speed-0 record or the end stop, even if the records cease | **PROBABLE** (five a7CR captures with a SELP1650; the same records sent to a SELP1650) |
 | **`0x1F`** | 14 B | **Scan** | Sweep focus across a window at a controlled speed | Size **CERTAIN**; meaning **PROBABLE** |
 | **`0x3C`** | 8 B | **Drive** | Run focus toward one end at a given speed | **PROBABLE** |
 | **`0x22`** | 3 B | **Position → distance query** | Answer with the distance code of the position in `rec[1..2]` | **PROBABLE** |
@@ -180,7 +181,9 @@ focus") without knowing the lens's position scale.
 ```
 rec[0]      0x1D
 rec[1..2]   u16 LE  operand (a target position, or a distance, depending on the mode)
-rec[3]      unknown, 0x00 in every record observed
+rec[3]      unknown: 0x00 from the A6000, a9 II and from an a7CR in photo mode; 0x05 to 0x6B from an a7CR in movie recording
+            (with mode 4, rec[4] = 0x2C). Sent to a SELP1650, a 512-count relative move took 72-88 ms with 0x00 or 0x05
+            and 104-125 ms with 0x6B: possibly a speed or time setting (POSSIBLE)
 rec[4]      mode byte: bits 0-2 select the mode, bit 3 is ignored, bits 4-7 unknown
 ```
 
@@ -350,10 +353,31 @@ F0 16 00 01 9C 04 | 00 00 19 81 00 00 28 00 00 00 08 00 00 | 81 01 55
 The same session also issued Move records, which are body-driven focus, so **the mode is not fixed
 for a session** — the body changes it, and the focus-mode control is the obvious cause.
 
-What a lens is required to do on receiving `0x81` is **UNKNOWN**, and untested: the device these
-frames were captured on has no focus ring of its own to follow.
+The device these frames were captured on has no focus ring of its own to follow.
+
+**On a Sony SEL40F25G and SELP1650,** with `0x81` sent, turning the lens's focus ring moves its own focus (zoom unchanged on the SELP1650) and is reported as in the table. With `0x83` the SEL40F25G ignored the same turn (a7CR capture). The lens's own
+AF/MF switch ([0x05](msg_0x05.md) `pl[62]`) does not matter: with it on AF the lens still followed `0x81`. The lens also streams focus-position
+samples ([0x42](msg_0x42.md)). **PROBABLE** (two lenses).
 
 ---
+
+### 3.6 Autofocus on a Sony a7CR
+
+Captured with a Sony SEL40F25G and SEL24F28G, and a SELP1650 for the rows that say so. **POSSIBLE** for the details, **PROBABLE**
+that photo autofocus runs over class-3 messages, rather than 0x04 records, on a lens that declares them (five captures, two lenses).
+
+| Situation | What the body sends |
+| --- | --- |
+| Half-press, AF-S | [0x41](msg_0x41.md) `61` (faster [0x42](msg_0x42.md) samples) and a [0x51](msg_0x51.md) (iris open); [0x45](msg_0x45.md) + [0x46](msg_0x46.md) sweeps (the lens answers 0x47, 0x48) with [0x49](msg_0x49.md) steps in between; a final [0x43](msg_0x43.md) to the chosen position; 0x41 `60`. No 0x04 records |
+| Half-press, AF-C | the same, with a [0x43](msg_0x43.md) every loop whose target follows the subject |
+| Half-press, lens without the class-3 group (Sony SELP1650) | the 0x04 records of §3: a `0x2F` row index and a `0x1F` Scan, then a Move (`0x1D`, mode `0x26`) every loop and a final Move with mode `0x80`; in AF-C also `0x22` queries and a Stop. The lens answers in frames carrying the record's ID (§4.2) |
+| Half-press held with DMF | after the AF run, 0x04 `pl[3]` = `0x81` (manual focus by wire, §3.5) until release, then `0x83` again; 0x43 requests carry `pl[6]` = `01` |
+| Entering and leaving movie mode | [0x53](msg_0x53.md) `12 87 00` (no 0x51 iris moves) with 0x41 `61`, and back with 0x53 `93 21 00`, 0x41 `60` and a 0x44 |
+| Movie recording, continuous AF | SEL40F25G: a [0x43](msg_0x43.md) every loop, with an occasional relative Move (`1d fd ff 37 2c`). SELP1650: relative Moves (mode 4, `rec[3]` non-zero) and some absolute ones. 0x03 `pl[7]` = `0x08` instead of `0x1C`; the SEL40F25G sends [0x42](msg_0x42.md) in its `61` form and no [0x5E](msg_0x5E.md) |
+| Shutter release | [0x4A](msg_0x4A.md) (focus position), a 0x51 to the shooting aperture, an all-zero [0x0A](msg_0x0A.md) and [0x0B](msg_0x0B.md) `30 61`; the loop pauses, with a [0x50](msg_0x50.md) and a [0x4F](msg_0x4F.md) start/end pair for each frame; then 0x0B `60 c1` and the normal 0x0A again. A burst gets one pause for all its frames (784 ms for four) |
+| Shutter release, lens without the class-3 group (SELP1650) | the same pause, with 0x0B `30 01` / `60 01` and the init-class [0x28](msg_0x28.md) (lens state) and [0x34](msg_0x34.md) (timed focus move) in place of 0x50 and 0x4A |
+| Zoom from the camera (SELP1650) | 0x04 `pl[10]` bit 3 set (the lens stops zooming from its own ring) and a `0x1E` Zoom record in every 0x04 while the control is held; on release one record with speed 0 (`1e 00 00 00 00`), which stops the zoom within a frame (at speed 6060 a SELP1650 coasted about 5 mm further), then none, and bit 3 cleared two loops later. Sent to a SELP1650, the records zoomed it with bit 3 clear too. At speed 3 (`29 05`) the full range took 1.4 s, at speed 8 (`ac 17`) about 0.3 s; 0x05 `pl[22]` bit 6 set while zooming; the lens answered once, at the end, with a frame of ID `0x1E` (§4.2) |
+| Aperture change in movie mode | no 0x51: the [0x03](msg_0x03.md) target steps every loop, in eased steps up to about `0x2D`, and the lens follows each within a loop; a ring move is chased the same way |
 
 ## 4. How the lens answers
 

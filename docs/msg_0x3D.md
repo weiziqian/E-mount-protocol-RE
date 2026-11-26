@@ -24,6 +24,9 @@ Observed once, from a Sony a9 II: payload `bd` followed by 22 zero bytes. Checks
 F0 20 00 02 00 3D | BD 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 | 1C 01 55
 ```
 
+A Sony a7CR sends `bd ff f3 11` and 19 zero bytes (23 B); `bd` and 22 zeros draws the same reply from the SEL40F25G. PROBABLE. The SELP1650
+does not declare 0x3D.
+
 What `bd` means is UNKNOWN.
 
 ## Lens reply — a file bitmap and feature bits
@@ -54,6 +57,7 @@ The field bits are copied into the body's [0x0A](msg_0x0A.md) request, so a lens
 | TECHART | LM-EA9: `pl[0] = 01`, the rest zero |
 | Yongnuo | 50 DF (v04), as its builder sends it: `pl[0] = 01`, `pl[1] = 01` (file 8, SteadyShotInfo), `pl[33..38] = 0f 07 04 ab 7f 02`. Its template table also holds a second record, `pl[0] = 01`, `pl[34] = 01`, which this page used to give; the builder does not send it |
 | TTArtisan | 50/1.8: `pl[0] = 01`, `pl[33] = 0C` (bits 2 and 3) |
+| Sony | SEL24F28G and SEL40F25G, identical: `pl[0..1] = 01 1b` (files 0, 8, 9, 11, 12), `pl[33..38] = 5f c7 05 2b ff 02`, `pl[41..44] = ff ff ff 1f`, `pl[60..61] = 91 07`, the rest zero. So `pl[33]` bits 2 and 4 and `pl[34]` bit 2 set; `pl[33]` bit 7, `pl[34]` bit 5, `pl[35]` bits 4–5, `pl[49]`, `pl[50]` clear. The SELP1650 does not declare the ID |
 
 TECHART and TTArtisan declare file 0 only; the Yongnuo 50 DF also declares file 8.
 

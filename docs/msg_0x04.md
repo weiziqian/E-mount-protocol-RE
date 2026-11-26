@@ -36,12 +36,16 @@ command the body issues.
 
 | Field | Meaning | Confidence |
 | --- | --- | --- |
-| `pl[0..5]` | Fixed prefix `00 00 19 83 00 00`, identical on every frame of every body and device observed, at every length | Constant **CERTAIN**; meaning **UNKNOWN** |
+| `pl[0..5]` | Fixed prefix `00 00 19 83 00 00`, identical on every frame of every body and device observed, at every length. **Except `pl[3]`:** `0x83` = the body drives focus (AF), `0x81` = the lens's own ring (manual focus by wire, [autofocus.md](autofocus.md)); the a7CR sends `0x81` in manual focus, and both lenses tested followed it | Constant **CERTAIN**; meaning **UNKNOWN** |
 | `pl[6]` | Constant within a session. Observed: `0x3B`, `0x28`, `0x21`, `0x18` | **UNKNOWN** |
-| `pl[7]` | `0x1F` to devices reporting an E-mount lens ID, `0x00` to devices reporting a legacy ID | Discriminates device class **PROBABLE**; quantity **UNKNOWN** |
+| `pl[7]` | `0x1F` to devices reporting an E-mount lens ID, `0x00` to devices reporting a legacy ID. The a7CR sends `0x43` (SEL40F25G) or `0x2E` (SELP1650) | Discriminates device class **POSSIBLE**; quantity **UNKNOWN** |
 | `pl[8..9]` | Zero in every frame observed | **UNKNOWN** |
-| `pl[10]` | State code. Static within a session from some bodies (`0x31`, `0x01`); varying from others — `0x09` while idle, `0x00`, `0x01`, `0x08`, `0x40`, `0x41` otherwise | A state code **PROBABLE**; the states **UNKNOWN** |
+| `pl[10]` | State code. Static within a session from some bodies (`0x31`, `0x01`); varying from others — `0x09` while idle, `0x00`, `0x01`, `0x08`, `0x40`, `0x41` otherwise. **Bit 3 decides what a Sony SELP1650 does with its barrel ring**: clear (`31`, `01`, `00`, `40`, `41`), the lens zooms from the ring; set (`08`, `09`), neither zoom nor focus moves and the ring is only reported, in [0x05](msg_0x05.md) `pl[61]` — what a body needs to drive focus from the ring itself in MF. A Sony a7CR also sets it while it zooms the lens itself with the `0x1E` record ([autofocus.md](autofocus.md)) | A state code **PROBABLE**; the states **UNKNOWN**; bit 3 on the SELP1650 **CERTAIN** (each value held ~7 s with the ring turning) |
 | `pl[11..12]` | Zero in every frame observed | **UNKNOWN** |
+
+Set to `00` and to `ff` one at a time, `pl[6..8]` and `pl[11..12]` brought no new value into anything a Sony SELP1650 or SEL24F28G reports. `pl[9]` = `ff` raised
+[0x06](msg_0x06.md)'s upper travel limit `pl[9..10]` (by 10 on the SELP1650, 25 on the SEL24F28G); on the SELP1650 `pl[10]` bit 7
+appeared in 0x06 `pl[6]` bit 7. POSSIBLE.
 
 ## Records — `pl[13]` onward
 
@@ -50,6 +54,7 @@ command the body issues.
 | `0x1C` | 1 B | none |
 | `0x1D` | 5 B | focus target, u16 LE; then a second u16 LE, zero in every frame observed |
 | `0x1F` | 14 B | 13 operand bytes, meaning **UNKNOWN** |
+| `0x2E` | 3 B | distance code, u16 LE: asks for the position at that distance ([autofocus.md](autofocus.md)); the a7CR appends `2E 0B 01` (about 0.28 m) every second loop |
 | `0x2F` | 3 B | a row-index pair, the same operand shape [message 0x03](msg_0x03.md) carries at `pl[20..22]` |
 
 The sizes are fixed per tag and account for every observed payload length exactly:
@@ -107,6 +112,10 @@ F0 1B 00 01 82 04 | 00 00 19 83 00 00 28 00 00 00 40 00 00 1D EC 12 00 00       
 
 Sony a9 II, 0x1D record carrying the 0x7FFF sentinel
 F0 1B 00 01 A1 04 | 00 00 19 83 00 00 28 00 00 00 41 00 00 1D FF 7F 00 00                                     | 61 03 55
+
+Sony a7CR to SEL40F25G, even loop and odd loop (with the 0x2E record)
+F0 16 00 01 xx 04 | 00 00 19 83 00 00 7D 43 00 00 00 00 00                                                    | .. .. 55
+F0 19 00 01 xx 04 | 00 00 19 83 00 00 7D 43 00 00 00 00 00 2E 0B 01                                           | .. .. 55
 
 To a Yongnuo YN35mm f/1.8S, 0x2F + 0x1C
 F0 1A 00 01 E8 04 | 00 00 19 83 00 00 18 00 00 00 09 00 00 2F 00 00 1C                                        | 0F 02 55

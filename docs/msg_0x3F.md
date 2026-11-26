@@ -7,7 +7,8 @@ name.
 
 **Class:** init (`0x02`).
 
-**Payload:** 65 bytes on the TECHART LM-EA9 — ASCII, NUL-padded, with a leading `00`.
+**Payload:** 65 bytes on the TECHART LM-EA9 and the Sony SEL24F28G and SEL40F25G — ASCII,
+NUL-padded, with a leading `00`.
 
 **Requested by later bodies.** The Sony A6000 does not offer ID `0x3F` and never asks for it; a
 Sony a9 II requests it during every init handshake.
@@ -31,6 +32,8 @@ A device that answers only the A6000's nine init messages will stall here on a l
 | TECHART LM-EA9 v1.5.0 – v1.8.0 | `TECHART LM-EA9` |
 | TTArtisan | `TTARTISAN 75mm F2.0`, `TTARTISAN 40mm F2.0` |
 | Meike | `MEKE 35mmF2.0 ` (vendor typo, shipped) |
+| Sony SEL24F28G | `FE 24mm F2.8 G` |
+| Sony SEL40F25G | `FE 40mm F2.5 G` |
 
 ## The name and the specification can disagree
 
@@ -51,11 +54,14 @@ difference between the two strings is exactly 122.
 - **TECHART** — asserts bit 62 for this ID. The A6000 does not offer it, but the a9 II requests it,
   so the bit is not the dead weight it appears to be against an older body.
 - **TTArtisan**, **Meike** — both implement the message; the Meike string ships with a typo.
-- **Sony**, **Yongnuo**, **Viltrox** — not observed implementing it.
+- **Sony** — the SEL24F28G and SEL40F25G implement it. The SELP1650 does not declare the ID;
+  asked anyway, it sends a class-`03` frame instead of a reply
+  ([0x01](msg_0x01.md#manufacturer-notes)).
+- **Yongnuo**, **Viltrox** — not observed implementing it.
 
 ## Open questions
 
 - What a body does with the string. The a9 II requests it during init; whether it is displayed,
   logged, or used to select behaviour is UNKNOWN.
-- Whether the payload length is fixed at 65 bytes or sized to the string.
+- Whether the payload length is fixed at 65 bytes or sized to the string (three devices, all 65).
 - What the leading `00` byte selects, if anything.

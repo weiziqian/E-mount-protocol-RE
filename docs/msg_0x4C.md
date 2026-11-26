@@ -14,12 +14,16 @@ limits and **aborts the handshake** if the lens's are higher.
 | --- | --- |
 | TECHART | LM-EA9 — 16 bytes, all zero |
 | Yongnuo | 7 bytes — `28 28 00 …` |
+| Sony | SEL40F25G — 7-byte payload `40 30 00 00 00 00 00` (16-byte frame), to a request of 7 zero bytes from a Sony a7CR. POSSIBLE |
 
 ## Where it sits in the handshake
 
 The A7 IV requests 0x4C after [message 0x0C](msg_0x0C.md) and before 0x0B, but only if the lens
 declares it in [message 0x01](msg_0x01.md) — at bit 75, `pl[9]` bit 3. It is expressible like any
 other ID; the 32-byte bitmap reaches `0x100`. CERTAIN on the A7 IV firmware.
+
+A Sony a7CR requests 0x4C right after 0x0C, with 7 zero bytes; its [offer](msg_0x01.md) includes `0x4C`. The SELP1650 does not declare it, so no
+request is sent. Leaving the request out lets the SEL40F25G initialise and work as before. PROBABLE.
 
 ## Reply `pl[0]`, `pl[1]` — compared against the body
 
