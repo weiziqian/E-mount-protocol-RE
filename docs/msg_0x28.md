@@ -130,6 +130,10 @@ status frame. The A7 IV then compares the aperture it asked for with the one the
 drives the iris again if they differ ([0x35](msg_0x35.md#when-the-body-sends-it--certain-on-the-a7-iv-firmware)).
 Only the focal length has been traced to an output (EXIF).
 
+A Sony a7CR sends it to a Sony SELP1650 at each frame of a shutter release (six requests `02 36 00` in a burst), inside the loop
+pause; to a lens with the class-3 group it sends [0x50](msg_0x50.md) instead. POSSIBLE. Sent the same request mid-session, a SELP1650 at 48.5 mm answered with
+`e5 01` (485) in `pl[4..5]`.
+
 ## Open questions
 
 - The three flags in `pl[8]`, and the value at `pl[32..33]`.

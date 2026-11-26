@@ -4,7 +4,8 @@
 capability bitmap.
 
 **Direction:** both. The body request is 1 byte — `00` on the A6000 and the a9 II, `08` in the
-A7 IV firmware; meaning UNKNOWN. The lens reply is 34 bytes.
+A7 IV firmware and in the full init of a Sony a7CR; meaning UNKNOWN. `00` and `08` drew the same replies from a Sony SEL40F25G and SELP1650.
+POSSIBLE. The lens reply is 34 bytes.
 
 **Class:** init (`0x02`).
 
@@ -16,7 +17,7 @@ A7 IV firmware; meaning UNKNOWN. The lens reply is 34 bytes.
 | Field | Meaning | Confidence |
 | --- | --- | --- |
 | `pl[0]` | **`01` on every native, `02` on every adapter.** Selects how the body drives focus: [below](#pl0-native-mode-vs-adapter-mode). The A7 IV reads `pl[0] & 3` and **aborts the handshake on `0` or `3`** (log `LENS UNKNOWN`). What the body does differently per class: [lens types](lens_types.md) | Discriminator **CERTAIN**; behaviour **CERTAIN** on one a9 II; abort **CERTAIN** on the A7 IV firmware; mode reading **PROBABLE** |
-| **`pl[1]`** | **UART speeds the lens supports.** bit 1 → speed 1 (1.5 Mbaud), bit 2 → speed 2 (3 Mbaud). The body requests the fastest one it also supports in [message 0x0C](msg_0x0C.md), and skips 0x0C if neither bit is set. Every device measured sends `03`, except Yongnuo's `07`; the A6000 then sends `0C 02`. For a [third-party ID](lens_id.md) the A7 IV keeps only bits 0–1 | **CERTAIN** on the A7 IV firmware; consistent with every capture |
+| **`pl[1]`** | **UART speeds the lens supports.** bit 1 → speed 1 (1.5 Mbaud), bit 2 → speed 2 (3 Mbaud). The body requests the fastest one it also supports in [message 0x0C](msg_0x0C.md), and skips 0x0C if neither bit is set. Every device measured sends `03`, except Yongnuo's and the Sony SEL24F28G's and SEL40F25G's `07`; the A6000 then sends `0C 02`. For a [third-party ID](lens_id.md) the A7 IV keeps only bits 0–1 | **CERTAIN** on the A7 IV firmware; consistent with every capture |
 | **`pl[2..3]`** | **Protocol version, u16 LE.** The A7 IV grades it at `0x0108`, `0x0110` and `0x0120`; below `0x0108` it ignores the [message 0x08](msg_0x08.md) `pl[85]` feature bits | **CERTAIN** on the A7 IV firmware |
 | **`pl[4]`** | **Must be `00`.** Any other value aborts the handshake on the A7 IV (log `LENS FIRMERR` — a lens-firmware error flag) | **CERTAIN** on the A7 IV firmware |
 | `pl[6]` | **BCD firmware version on the TECHART LM-EA9** (`0x18` = 1.8) | CERTAIN for the LM-EA9 |
@@ -24,7 +25,7 @@ A7 IV firmware; meaning UNKNOWN. The lens reply is 34 bytes.
 | **`pl[9..10]`** | **u16 LE Sony lens ID.** Its range decides how far the body trusts the rest of the init data: [lens ID](lens_id.md) | **CERTAIN** |
 | **`pl[19..20]`, `pl[21..22]`** | **Two u16 LE, an upper and a lower bound.** The A7 IV interpolates between them, on a curve picked by their ratio, and sends the result as an operand of the focus record `0x1E` ([below](#pl1922-the-operands-of-focus-record-0x1e)). Both zero, or upper ≤ lower: no `0x1E`. Yongnuo sends zeros | **CERTAIN** on the A7 IV firmware; meaning of the bounds UNKNOWN |
 | `pl[25]`, `pl[26..27]`, `pl[28]` | Bit fields the A7 IV reads (`pl[28]` bit 0 feeds its [message 0x0B](msg_0x0B.md) request) | UNKNOWN |
-| `pl[15..18]` | `60 92 86 5e` on the LM-EA9, on a third-party native, and on both Yongnuo lenses | **Protocol constant** — CERTAIN |
+| `pl[15..18]` | `60 92 86 5e` on the LM-EA9, on a third-party native, on both Yongnuo lenses, and on the Sony SELP1650, SEL24F28G and SEL40F25G | **Protocol constant** — CERTAIN |
 
 ## `pl[0]`: native mode vs adapter mode
 
@@ -51,6 +52,7 @@ With `02`, [message 0x08](msg_0x08.md#pl85) `pl[85] = 0x80` stops AF altogether.
 | --- | --- |
 | Sony SEL55210 | `0x0135` |
 | Sony SELP1650 | `0x0120` |
+| Sony SEL24F28G, SEL40F25G | `0x0160` |
 | Viltrox EF adapter | `0x0108` |
 | Yongnuo YN35 DA, 50 DF | `0x0160` |
 
@@ -77,6 +79,8 @@ declares it and fills these bounds must handle the record. Yongnuo sends zeros.
 | --- | --- | --- | --- |
 | Sony SEL55210 | 01 | 32786 = `0x8012` | E-mount (`0x8xxx`) |
 | Sony SELP1650 | 01 | 32793 = `0x8019` | E-mount |
+| Sony SEL24F28G | 01 | 32866 = `0x8062` | E-mount |
+| Sony SEL40F25G | 01 | 32867 = `0x8063` | E-mount |
 | **Yongnuo YN35 DA** (V06) | 01 | **56914 = `0xDE52`** | Third-party block |
 | **Yongnuo 50F1.8S DF** (v04) | 01 | **56916 = `0xDE54`** | Third-party block |
 | Viltrox + Canon EF 50 / EF-S 24 | 02 | 78 = `0x004E` | Legacy / A-mount |
@@ -111,7 +115,10 @@ table is not a naming table. Strong inference, not proof.
 
 ## Manufacturer notes
 
-- **Sony** — natives send `pl[0] = 01` and an E-mount ID in the `0x8xxx` range.
+- **Sony** — natives send `pl[0] = 01` and an E-mount ID in the `0x8xxx` range. The SEL24F28G's
+  reply (`01 07 60 01 00 00 01 20 a0 62 80 00 00 00 00 60 92 86 5e`, then zeros except
+  `pl[26..28] = 60 01 03`) matches Yongnuo's in `pl[1]`, the version and `pl[19..22] = 0`. The
+  SEL40F25G sends the same bytes except its lens ID and `pl[26] = 11`.
 - **Yongnuo** — sends `pl[0] = 01`, presenting as a native, `pl[1] = 07`, version `0x0160`, and a
   third-party ID of its own per lens (`0xDE52`, `0xDE54`). The stored template's `0xC540` is never sent.
 - **TECHART** — the LM-EA9 sends `pl[0] = 02` and legacy ID 234, and puts its own BCD firmware

@@ -42,8 +42,8 @@ masks those bytes in every received 0x06 before anything reads them
 | `pl[4]` | `00` on primes (SEL5518Z, Yongnuo) and adapters; `d0` / `a1` SEL55210 @55 / @210 mm, `05` SEL2870 @70 mm, `07` SELP1650. Equal to `pl[11]` on every lens but the SELP1650 (`22`). **Third-party: zeroed — no effect.** | **UNKNOWN** |
 | `pl[5]` | `10` on primes; `11` / `4c` SEL55210 @55 / @210 mm, `4f` SEL2870, `10` SELP1650; `00` on the Viltrox. Equal to `pl[12] + 0x10` on every Sony lens — an addition, not a bit set (`3c` → `4c`). Read as u16, `pl[4..5] = pl[11..12] + 0x1000` covers both rules except the SELP1650's `pl[4]`; no carry into `pl[5]` has been observed, so the u16 reading is untested. **Body:** reads `pl[4..5]` as **one u16**. In one body mode a change of more than 256 raises its "zoom moving" flag, with the direction; in the other mode that flag follows 0x05's focal length instead. Separately, it marks `pl[4..5]` stable after 16 unchanged frames. This supports the u16 reading and a zoom position. **Third-party: zeroed — no effect**, so the zoom-moving flag never comes from 0x06. | **UNKNOWN**; u16 read **CERTAIN on the a7S III firmware** |
 | `pl[6]` | `0x10` on every Sony native and every adapter observed. The SELP1650 adds a 2-bit counter in bits 5–6 that steps every frame (`10 30 50 70`). In the NEX-7 captures the Voigtländer 15 mm sends `0x10` only while its ring turns and `0x00` at rest, and the Loxia 21 sends `0x00`. **Body:** bit 4 = **this frame's position is valid**. For devices without the in-frame trace, a frame with it clear gets its neighbours' average position, and an adapter's in-frame interpolation needs it set three frames running. Not consulted on the trace path. **Third-party:** only bit 4 is kept; the other bits, including the SELP1650's counter, have no effect. | **UNKNOWN**; body use **CERTAIN on the a7S III firmware** |
-| **`pl[7..8]`** | **u16 LE lower focus travel limit** **Body:** treated as 0 for adapters. | **CERTAIN** on the LM-EA9; PROBABLE generally |
-| **`pl[9..10]`** | **u16 LE upper focus travel limit** | as above |
+| **`pl[7..8]`** | **u16 LE lower focus travel limit** **Body:** treated as 0 for adapters. **Not fixed:** on the Sony SEL24F28G and SEL40F25G both limits move outwards as the iris closes (SEL40F25G 16105–19962 at f/2.6, 15917–20064 at f/22) | **CERTAIN** on the LM-EA9; PROBABLE generally |
+| **`pl[9..10]`** | **u16 LE upper focus travel limit.** Larger in manual focus (`0x04` `pl[3]` = `0x81`): 19962 in AF and 20536 in MF on the Sony SEL40F25G, 18158 and 18789 on the SEL24F28G | as above; the mode dependence **PROBABLE** |
 | `pl[11..12]` | u16 LE. 0 on primes; on zooms it grows with focal length — SEL55210 464 @55 mm, 15521 @210 mm; SEL2870 16133 @70 mm (tele end); SELP1650 34. **Body:** interpolated onto each AF sample record together with `pl[2..3]`. | **UNKNOWN**; zoom position **POSSIBLE** |
 | `pl[13..14]` | u16 LE [defocus scale](autofocus.md#26-the-defocus-unit): Move mode 6 multiplies its operand by it. That it measures position counts per defocus unit at the current aperture is inferred from Yongnuo's per-aperture table. | Use by mode 6 **CERTAIN**; what it measures **PROBABLE** |
 | `pl[15..19]` | SELP1650 `14 47 47 eb 08`. **Third-party: `pl[16..19]` zeroed — no effect.** `pl[15]` is kept. | **UNKNOWN** |
@@ -355,13 +355,12 @@ advertises in message 0x08.**
 | Viltrox + EF 50 mm / EF-S 24 mm | 691 / 968 | constant |
 | Yongnuo 35 DA, 50 DA / 50 DF v04 | 0 / 254 | hardcoded, never computed |
 
-It differs between lenses and with focal length (SEL55210). None of the Sony captures contains a
-focus move, so whether it varies with focus on an AF lens is unobserved. Yongnuo sends a constant and
+It differs between lenses and with focal length (SEL55210). On the SEL40F25G `pl[9..10]` moves by under 30 counts as focus goes from infinity to 0.29 m, with no relation to position. Yongnuo sends a constant and
 autofocuses correctly, so the field is **not required for autofocus**.
 
 ## Manufacturer notes
 
-- **Sony** — natives populate the near-limit flags in `pl[0]`, the velocity trace, and `pl[26..27]`. Travel spans are wide (the SEL5518Z spans 5809 counts).
+- **Sony** — natives populate the near-limit flags in `pl[0]`, the velocity trace, and `pl[26..27]`. Travel spans are wide (the SEL5518Z spans 5809 counts). The SELP1650 sends 0x06 every second loop and [0x2E](msg_0x2E.md) in the others.
 - **Yongnuo** — computes a one-frame forecast for `pl[2..3]` and the near-limit flags, sends its replies from an event
   queue (using `0x1F` internally for "no event"), and writes a constant to `pl[26..27]`.
 - **TECHART** — the LM-EA9 sends `pl[0] = 0`, a constant `pl[26..27]`, no forecast, and a narrow

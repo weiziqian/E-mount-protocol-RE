@@ -54,13 +54,19 @@ Body offers grow with generation:
 | Sony NEX-7 | `ff ff ff ff ff ff ff 01` | `0x39` |
 | Sony A6000 | `ff ff ff ff ff ff ff 1f` | `0x3d` |
 | Sony A7 IV (firmware) | `ff ff ff ff ff ff ff ff ff ef ff ff` then zeros | `0x60`, all except `0x4D` |
+| Sony a7CR (full init) | `ff ff ff ff ff ff ff ff ff ef ff ff 07` then zeros | `0x63`, all except `0x4D` |
+
+Like the A7 IV's it clears only `0x4D` (byte 9 bit 4), so it offers [0x4C](msg_0x4C.md); it also sets byte 12 = `07`, offering `0x61` to `0x63`.
+POSSIBLE (one body).
 
 The A7 IV has a second, reduced mask offering only `01 07 0C 14 15`; when it is used is UNKNOWN.
 
-Lens replies (first 8 bytes; the rest is zero on every lens measured):
+Lens replies (first 8 bytes; the rest is zero on every lens measured except the SEL24F28G and
+SEL40F25G):
 
 | Device | Mask | # IDs |
 | --- | --- | --- |
+| **Sony SEL24F28G, SEL40F25G** (native) | `ff 9f ff 5d ee 60 18 fe` **`ff cf ff 71`** | **70**, up to `0x5F` |
 | **Yongnuo YN35 DA** (native AF) | `ff 9f ff 5d ee 60 18 5e` | **42** |
 | **Yongnuo 50F1.8S DF** (v04, native AF) | `ff 9f ff 5d ee 60 18 de` | **43** |
 | Sony SELP1650 (native) | `ff 9f ff 7d ee 60 08 00` | 37 |
@@ -78,7 +84,13 @@ groups cleanly, which makes this message a usable native/adapter discriminator.
 - **Yongnuo** — the YN35 and 50F1.8S assert the largest set seen, 42 IDs, above both Sony natives
   measured. The 50 DF's builder also sets bit 63 (ID `0x40`), which its stored template lacks and
   which it has no handler for.
-- **Sony** — the two natives measured differ from each other only in the last byte.
+- **Sony** — the SELP1650 and SEL55210 differ only in the last byte. The SEL24F28G and SEL40F25G send identical masks with 70 IDs, the only
+  lenses seen to declare IDs above `0x40` (`pl[8..11]`).
+- **Sony, plain offer** — every ID up to `0x60` with `0x4C` cleared was accepted by the SEL40F25G and SELP1650, with the same replies as to the
+  a7CR's offer. PROBABLE (two lenses).
+- **Undeclared IDs** — asked for `0x3F`, which it does not declare, the SELP1650 sends no reply; 11 ms later it sends a class-`03` frame, ID `0x02`,
+  payload `02 3f 04 00 4b 00 55` (the class and ID asked for come first). A body that carries on with its next request gets normal replies and
+  the init completes. PROBABLE (three sessions).
 - **Viltrox** — the EF adapter asserts 30 IDs and sits with the adapters on both discriminator
   bytes.
 

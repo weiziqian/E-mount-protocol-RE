@@ -21,7 +21,9 @@ What the Sony A7 IV firmware does with the reply:
 | other bytes | Stored, not read by the handshake | — |
 
 The body's 4-byte request is not always zero on the A7 IV: `pl[0]` can carry a saved value, or `01`
-for one Sony lens ID. Meaning UNKNOWN.
+for one Sony lens ID. From a Sony a7CR it is `00 00 00 00` to the SEL24F28G and SEL40F25G; to the SELP1650
+it has been `00`, `6c`, `76` or `80` in `pl[0]` and `00` or `40` in `pl[1]`, and the wake sequence sends `00 40 00 00`. The values did not follow
+the SteadyShot setting, the focal length or the power-on path consistently. **UNKNOWN**.
 
 ## Observed payloads
 
@@ -29,6 +31,9 @@ for one Sony lens ID. Meaning UNKNOWN.
 | --- | --- | --- |
 | B→L | Sony A6000, every lens | `00 00 00 00` |
 | B→L | Sony a9 II | `00 00 00 00` |
+| B→L | Sony a7CR, SEL24F28G and SEL40F25G | `00 00 00 00` |
+| B→L | Sony a7CR, SELP1650, power-on | `00 00 00 00`, `00 40 00 00`, `6c 00 00 00`, `76 00 00 00`, `80 00 00 00` in different sessions |
+| B→L | Sony a7CR, SELP1650, wake sequence | `00 40 00 00` |
 | L→B | Sony SELP1650 | `10 00 00 00 00 00 00 00 00 fd ff` |
 | L→B | Sony SEL55210 | all zero |
 | L→B | Viltrox EF adapter | `01 01 00 …` |

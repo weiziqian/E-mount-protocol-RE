@@ -23,6 +23,13 @@ Sony A6000 → SELP1650, 23-byte native form:
 BB 2E 00 BD 13 BD 13 1C 00 00 06 04 00 02 00 03 01 00 00 00 2F 15 17
 ```
 
+Sony a7CR → SEL40F25G, 23-byte native form, two consecutive loops at rest:
+
+```
+D7 61 08 AA 13 AA 13 1C 00 00 02 00 00 02 00 02 01 00 00 00 2F 15 16
+D7 61 08 AA 13 AA 13 1C 00 00 02 01 01 02 00 02 01 00 00 00 2F 15 17
+```
+
 Sony a9 II → TECHART LM-EA9, 20-byte adapter form, two consecutive frames early in a session:
 
 ```
@@ -38,13 +45,17 @@ adapter form drops is the `2F` + index tail at `pl[20..22]`, nothing else.
 | Field | Meaning | Confidence |
 | --- | --- | --- |
 | `pl[0..1]` | u16 LE. Takes body-side values (`0x399C` = 14748, `0x2EBB` = 11963, `0x1A2C` = 6700 on an A6000; `0x3D6C` = 15724, `0x31F6` = 12790 on an a9 II). **The same values appear across two different lenses**, so it is body state, not lens data. Changes every frame. | UNKNOWN |
-| `pl[3..4]`, `pl[5..6]` | **u16 LE pair, both [aperture values](aperture_value.md).** `pl[5..6]` is the aperture the body is asking for. `pl[3..4]` is `0x1000` = 4096 = f/1.0 in the first frame of a session and equal to `pl[5..6]` in every frame after it. `pl[3..4]` is the body's iris drive target; `pl[5..6]` is a second target that the body updates only in one exposure-control state and otherwise holds. [Below](#where-the-body-takes-the-aperture-pair-from) | Both are apertures **CERTAIN**; sources **CERTAIN on the a7C II firmware**; what the exposure state means **UNKNOWN** |
-| `pl[7]` | `0x94` at start of session, `0x1C` thereafter. Holds on both bodies. **Bit 7 selects the live aperture field**: set → `pl[5..6]`, clear → `pl[3..4]`. Bits 2, 3 and 4 are three further exposure-control flags, meaning UNKNOWN | Bit 7 **CERTAIN on the a7C II firmware**; other bits UNKNOWN |
+| `pl[3..4]`, `pl[5..6]` | **u16 LE pair, both [aperture values](aperture_value.md).** `pl[5..6]` is the aperture the body is asking for. `pl[3..4]` is `0x1000` = 4096 = f/1.0 in the first frame of a session and equal to `pl[5..6]` in every frame after it. `pl[3..4]` is the body's iris drive target; `pl[5..6]` is a second target that the body updates only in one exposure-control state and otherwise holds. [Below](#where-the-body-takes-the-aperture-pair-from). In an aperture change in photo mode the a7CR steps both by `0x0080` every second loop, one [0x51](msg_0x51.md) per step, to the ring's value ([0x05](msg_0x05.md) `pl[17..18]`) or the new setting; in movie mode it steps them every loop without 0x51 ([lens control of the aperture](lens_aperture_control.md)). **POSSIBLE** | Both are apertures **CERTAIN**; sources **CERTAIN on the a7C II firmware**; what the exposure state means **UNKNOWN** |
+| `pl[7]` | `0x94` at start of session, `0x1C` thereafter. Holds on both bodies. **Bit 7 selects the live aperture field**: set → `pl[5..6]`, clear → `pl[3..4]`. Bits 2, 3 and 4 are three further exposure-control flags, meaning UNKNOWN. The a7CR sends `0x1C`, and `0x18` while the SELP1650's focus ring moves. On the SELP1650, `0x18` instead of `0x1C` shifts the lens's reported aperture ([0x05](msg_0x05.md) `pl[0..3]`) by 5 raw units (`0x13C2` to `0x13BD`) within 33 ms; `0x1C` reverses it. The aperture of the SEL40F25G and SEL24F28G does not change | Bit 7 **CERTAIN on the a7C II firmware**; other bits UNKNOWN; the bit 2 effect **PROBABLE** (SELP1650, 2 sessions) |
 | `pl[10]`, `pl[11]` | **Body cycle**: `pl[10]` is the cycle length N in frames, `pl[11]` the frame within it, 0…N−1. The lens follows it in [message 0x06](msg_0x06.md) `pl[23]`. | **PROBABLE** |
-| `pl[12]` | 0 or 1 | UNKNOWN |
+| `pl[12]` | 0 or 1. `ff` shifts the Sony SELP1650's reported aperture by 5 raw units, as `pl[7]` bit 2 does | UNKNOWN; the shift **POSSIBLE** |
 | `pl[15]` | `02` or `03` | UNKNOWN |
 | `pl[20]` | `0x2F` constant on natives — an instruction tag rather than an arbitrary constant, see below | PROBABLE |
 | `pl[21..22]` | **Table row index pair** — same value space as message 0x05's `pl[77..78]` (`0x15 0x16 0x17`) | **CERTAIN**: the lens echoes it two cycles later, see below |
+
+Set to `00` and to `ff` one at a time on a Sony SELP1650 and SEL24F28G, `pl[0..1]`, `pl[8..9]`, `pl[14..17]` and `pl[19]` brought no new
+value into anything the lens reports. On the SEL24F28G `pl[2]` = `ff` zeroed [0x05](msg_0x05.md) `pl[38..43]` and `pl[89..]`, and `pl[13]` = `00`
+or `pl[18]` = `ff` moved [0x06](msg_0x06.md) `pl[26..27]`. POSSIBLE.
 
 ### The aperture pair
 
@@ -135,6 +146,10 @@ seen on a second lens, not confirmed as protocol-wide:
 | `0x15` (main-loop range `0x15`–`0x17`) | Genuine new data |
 
 POSSIBLE.
+
+A Sony SELP1650 sent a class-`03` frame, ID `0x02`, each loop while `pl[20]` was `00` or `ff` instead of `0x2F`. A SEL24F28G went silent
+until power-cycled with `00`, and sent a class-`02` frame, ID `0x02`, with `ff`, so a body must keep `0x2F` here. With `00` or `ff` as
+a row index both lenses echoed the index and returned zeros in that row's data. POSSIBLE.
 
 ## The body chooses the row; the lens answers two cycles later
 

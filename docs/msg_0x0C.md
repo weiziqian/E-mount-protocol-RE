@@ -15,6 +15,9 @@
 | --- | --- | --- | --- |
 | B→L | Sony A6000, every lens | `02` | — |
 | L→B | Sony SELP1650, SEL55210, Viltrox EF adapter | `01` | 1.5 Mbaud |
+| L→B | Sony SEL24F28G, SEL40F25G, to `02` | `01` | 1.5 Mbaud |
+| L→B | Sony SEL24F28G, SEL40F25G, to `04` | `01` | 3 Mbaud |
+| L→B | Sony SELP1650, to `04` | `01` | stays at 750 kbaud |
 | L→B | Yongnuo (firmware) | `01` | 1.5 Mbaud |
 | L→B | TECHART LM-EA9 | `00` | 750 kbaud |
 
@@ -51,7 +54,13 @@ Yongnuo ignores the request byte.
 | 2 | `04` | **3 Mbaud** |
 
 CERTAIN on the a7C II firmware: its UART setter maps 0/1/2 to 750 000, 1 500 000 and 3 000 000.
-No device has been seen to declare speed 2.
+Speed 2 is declared in [0x07](msg_0x07.md) `pl[1]` (`07`) by Yongnuo, in its firmware, and by the
+Sony SEL24F28G and SEL40F25G, on the wire. No Sony body has been seen to request it. Asked with `04`, the
+SEL24F28G and SEL40F25G reply `01` and the init, the loop, focus, aperture and shutdown then run at 3 Mbaud.
+PROBABLE (two lenses, three sessions each).
+The SELP1650, which declares speed 1 only, also replies `01` to `04` but stays at 750 kbaud, sends a class-`03` frame, ID `0x02`,
+payload `ff ff 02 47 cc dc 68`, and carries on at 750 kbaud. The reply does not tell the body which speed was taken, so a body should ask only
+for a speed the lens declared. PROBABLE (one lens, four sessions).
 
 ## On wake
 
